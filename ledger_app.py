@@ -585,6 +585,13 @@ class LedgerApp(QMainWindow):
                     font.setBold(True)
                     item.setFont(font)
                 self.table.setItem(table_row, j, item)
+                if j == 3:
+                    cb = QComboBox()
+                    cb.addItems(["Credit", "Debit"])
+                    cb.setCurrentText(s)
+                    cb.setStyleSheet("border: none; background: transparent; padding: 2px 6px; font-size: 15px;")
+                    cb.currentTextChanged.connect(lambda txt, r=table_row: self._update_status(r, txt))
+                    self.table.setCellWidget(table_row, 3, cb)
             btn = QPushButton("Remove")
             btn.setObjectName("btn_remove")
             btn.clicked.connect(lambda checked, r=table_row: self.remove_transaction(r))
@@ -837,6 +844,20 @@ class LedgerApp(QMainWindow):
                 self.refresh_view()
             else:
                 QMessageBox.warning(self, "Error", "Invalid data input")
+
+    def _update_status(self, row, new_status):
+        item = self.table.item(row, 0)
+        if not item:
+            return
+        meta = item.data(Qt.ItemDataRole.UserRole)
+        if not meta:
+            return
+        sheet_name, sheet_row = meta
+        df = pd.read_excel(self.file_path, sheet_name=sheet_name)
+        if sheet_row < len(df):
+            df.loc[sheet_row, 'Status'] = new_status
+            with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
 
     def remove_transaction(self, row):
         item = self.table.item(row, 0)
