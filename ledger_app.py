@@ -530,7 +530,7 @@ class LedgerApp(QMainWindow):
 
             self._inp_status = QComboBox()
             self._inp_status.addItems(["Credit", "Debit"])
-            self._inp_status.setStyleSheet("border: none; background: #f8fafc; padding: 2px 6px; font-size: 15px; color: #334155;")
+            self._inp_status.setStyleSheet("border: none; background: #f8fafc; padding: 2px 6px; font-size: 15px; color: #000000;")
             self.table.setCellWidget(0, 3, self._inp_status)
 
             num_validator = QRegularExpressionValidator(QRegularExpression(r'^\d*\.?\d*$'))
@@ -589,7 +589,7 @@ class LedgerApp(QMainWindow):
                 if j == 3:
                     cb = QComboBox()
                     cb.addItems(["Credit", "Debit"])
-                    cb.setStyleSheet("border: none; background: transparent; padding: 2px 6px; font-size: 15px;")
+                    cb.setStyleSheet("border: none; background: transparent; padding: 2px 6px; font-size: 15px; color: #000000;")
                     cb.setCurrentText(s)
                     cb.currentTextChanged.connect(lambda txt, r=table_row: self._update_status(r, txt))
                     self.table.setCellWidget(table_row, 3, cb)
