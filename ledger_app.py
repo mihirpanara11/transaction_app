@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QListWidget, QPushButton, QTableWidget, 
                              QTableWidgetItem, QSplitter, QDialog, 
                              QFormLayout, QLineEdit, QDateEdit, QHeaderView, QLabel, QMessageBox,
-                             QFileDialog, QDialogButtonBox)
+                             QFileDialog, QDialogButtonBox, QComboBox)
 from PyQt6.QtCore import Qt, QRegularExpression, QDate
 from PyQt6.QtWidgets import QCompleter
 from PyQt6.QtPrintSupport import QPrinter
@@ -61,6 +61,8 @@ class TransactionDialog(QDialog):
         self.party_input.setCompleter(completer)
 
         self.desc_input = QLineEdit()
+        self.status_input = QComboBox()
+        self.status_input.addItems(["Credit", "Debit"])
         self.qty_input = QLineEdit()
         self.rate_input = QLineEdit()
         self.total_input = QLineEdit()
@@ -72,6 +74,7 @@ class TransactionDialog(QDialog):
         layout.addRow("Date:", self.date_input)
         layout.addRow("Party Name:", self.party_input)
         layout.addRow("Description:", self.desc_input)
+        layout.addRow("Status:", self.status_input)
         layout.addRow("Quantity:", self.qty_input)
         layout.addRow("Rate:", self.rate_input)
         layout.addRow("Total:", self.total_input)
@@ -169,6 +172,7 @@ class TransactionDialog(QDialog):
             "Date": self.date_input.text().strip(),
             "Party Name": self.party_input.text().strip(),
             "Description": self.desc_input.text().strip(),
+            "Status": self.status_input.currentText(),
             "Quantity": qty,
             "Rate": rate,
             "Total": total
@@ -184,7 +188,7 @@ class LedgerApp(QMainWindow):
         self.init_data_file()
         self.init_ui()
 
-    SHEET_COLUMNS = ['Date', 'Description', 'Quantity', 'Rate', 'Total']
+    SHEET_COLUMNS = ['Date', 'Description', 'Quantity', 'Rate', 'Status', 'Total']
 
     def init_data_file(self):
         if not os.path.exists(self.file_path):
@@ -202,14 +206,16 @@ class LedgerApp(QMainWindow):
                     df['Party Name'] = sheet
                     df['_sheet_name'] = sheet
                     df['_sheet_row'] = df.index
-                    # Ensure Total column exists (backward compat with old sheets)
+                    # Ensure columns exist (backward compat)
                     if 'Total' not in df.columns:
                         df['Total'] = 0.0
+                    if 'Status' not in df.columns:
+                        df['Status'] = 'Credit'
                     all_data.append(df)
-            cols = ['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total', '_sheet_name', '_sheet_row']
+            cols = ['Date', 'Party Name', 'Description', 'Status', 'Quantity', 'Rate', 'Total', '_sheet_name', '_sheet_row']
             return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame(columns=cols)
         except Exception as e:
-            return pd.DataFrame(columns=['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total', '_sheet_name', '_sheet_row'])
+            return pd.DataFrame(columns=['Date', 'Party Name', 'Description', 'Status', 'Quantity', 'Rate', 'Total', '_sheet_name', '_sheet_row'])
 
     def init_ui(self):
         self.setWindowTitle("Party Ledger Manager")
@@ -446,7 +452,7 @@ class LedgerApp(QMainWindow):
             df = self.load_all_data()
         
         # Always build a clean DataFrame with the 6 columns in fixed order.
-        cols = ['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total']
+        cols = ['Date', 'Party Name', 'Description', 'Status', 'Quantity', 'Rate', 'Total']
 
         if not df.empty:
             meta_cols = ['_sheet_name', '_sheet_row']
@@ -456,6 +462,9 @@ class LedgerApp(QMainWindow):
                 if c not in df.columns:
                     df[c] = 0.0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+            if 'Status' not in df.columns:
+                df['Status'] = 'Credit'
+            df['Status'] = df['Status'].astype(str)
             calc_total = df['Quantity'] * df['Rate']
             mask = (df['Total'] == 0) & (calc_total != 0)
             df.loc[mask, 'Total'] = calc_total[mask]
@@ -484,14 +493,16 @@ class LedgerApp(QMainWindow):
 
         self.table.setRowCount(0)
         self.table.setColumnCount(0)
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(8)
         headers = cols + ['Action']
         self.table.setHorizontalHeaderLabels(headers)
 
         show_input = self._current_party is not None
         show_party = self._current_party is None
         self.table.setColumnHidden(1, not show_party)
-        grand_total = pd.to_numeric(clean['Total'], errors='coerce').sum()
+        clean['Total'] = pd.to_numeric(clean['Total'], errors='coerce').fillna(0.0)
+        credit_mask = clean['Status'] == 'Credit'
+        grand_total = clean.loc[credit_mask, 'Total'].sum() - clean.loc[~credit_mask, 'Total'].sum()
 
         if show_input:
             self.table.setRowCount(len(clean) + 2)  # input + data + total
@@ -517,6 +528,11 @@ class LedgerApp(QMainWindow):
             self._inp_desc.returnPressed.connect(self._add_inline_transaction)
             self.table.setCellWidget(0, 2, self._inp_desc)
 
+            self._inp_status = QComboBox()
+            self._inp_status.addItems(["Credit", "Debit"])
+            self._inp_status.setStyleSheet("border: none; background: #f8fafc; padding: 2px 6px; font-size: 15px; color: #334155;")
+            self.table.setCellWidget(0, 3, self._inp_status)
+
             num_validator = QRegularExpressionValidator(QRegularExpression(r'^\d*\.?\d*$'))
 
             self._inp_qty = QLineEdit()
@@ -525,7 +541,7 @@ class LedgerApp(QMainWindow):
             self._inp_qty.setValidator(num_validator)
             self._inp_qty.textChanged.connect(self._inline_auto_calc)
             self._inp_qty.returnPressed.connect(self._add_inline_transaction)
-            self.table.setCellWidget(0, 3, self._inp_qty)
+            self.table.setCellWidget(0, 4, self._inp_qty)
 
             self._inp_rate = QLineEdit()
             self._inp_rate.setPlaceholderText("Rate")
@@ -533,7 +549,7 @@ class LedgerApp(QMainWindow):
             self._inp_rate.setValidator(num_validator)
             self._inp_rate.textChanged.connect(self._inline_auto_calc)
             self._inp_rate.returnPressed.connect(self._add_inline_transaction)
-            self.table.setCellWidget(0, 4, self._inp_rate)
+            self.table.setCellWidget(0, 5, self._inp_rate)
 
             self._inp_total = QLineEdit()
             self._inp_total.setPlaceholderText("Auto")
@@ -541,12 +557,12 @@ class LedgerApp(QMainWindow):
             self._inp_total.setValidator(num_validator)
             self._inp_total.textChanged.connect(self._on_total_changed)
             self._inp_total.returnPressed.connect(self._add_inline_transaction)
-            self.table.setCellWidget(0, 5, self._inp_total)
+            self.table.setCellWidget(0, 6, self._inp_total)
 
             btn_add = QPushButton("Add")
             btn_add.setObjectName("btn_remove")
             btn_add.clicked.connect(self._add_inline_transaction)
-            self.table.setCellWidget(0, 6, btn_add)
+            self.table.setCellWidget(0, 7, btn_add)
 
         offset = 1 if show_input else 0
         if not show_input:
@@ -572,7 +588,7 @@ class LedgerApp(QMainWindow):
             btn = QPushButton("Remove")
             btn.setObjectName("btn_remove")
             btn.clicked.connect(lambda checked, r=table_row: self.remove_transaction(r))
-            self.table.setCellWidget(table_row, 6, btn)
+            self.table.setCellWidget(table_row, 7, btn)
         
         # Grand total row
         total_row = offset + len(clean)
@@ -592,7 +608,7 @@ class LedgerApp(QMainWindow):
         total_val.setFont(gt_font)
         total_val.setBackground(QColor('#f1f5f9'))
         total_val.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.table.setItem(total_row, 5, total_val)
+        self.table.setItem(total_row, 6, total_val)
         
         # Update party list
         self.party_list.clear()
@@ -641,14 +657,17 @@ class LedgerApp(QMainWindow):
         df['_date_parsed'] = pd.to_datetime(df['Date'], format='%d-%m-%Y', errors='coerce')
         df = df.sort_values(by='_date_parsed', ascending=False)
 
-        grand_total = df['Total'].sum()
+        if 'Status' not in df.columns:
+            df['Status'] = 'Credit'
+        credit_mask = df['Status'] == 'Credit'
+        grand_total = df.loc[credit_mask, 'Total'].sum() - df.loc[~credit_mask, 'Total'].sum()
         show_party = party_name is None
 
-        cols = ['Date', 'Description', 'Quantity', 'Rate', 'Total']
-        headers = ['Date', 'Description', 'Qty', 'Rate', 'Total']
+        cols = ['Date', 'Description', 'Status', 'Quantity', 'Rate', 'Total']
+        headers = ['Date', 'Description', 'Status', 'Qty', 'Rate', 'Total']
         if show_party:
-            cols = ['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total']
-            headers = ['Date', 'Party', 'Description', 'Qty', 'Rate', 'Total']
+            cols = ['Date', 'Party Name', 'Description', 'Status', 'Quantity', 'Rate', 'Total']
+            headers = ['Date', 'Party', 'Description', 'Status', 'Qty', 'Rate', 'Total']
 
         rows_html = ''
         for _, row in df.iterrows():
@@ -808,6 +827,7 @@ class LedgerApp(QMainWindow):
                     'Description': data['Description'],
                     'Quantity': data['Quantity'],
                     'Rate': data['Rate'],
+                    'Status': data.get('Status', 'Credit'),
                     'Total': data['Total']
                 }])
                 updated_df = pd.concat([df, new_row], ignore_index=True)
@@ -942,7 +962,9 @@ class LedgerApp(QMainWindow):
 
         new_row = pd.DataFrame([{
             'Date': date_str, 'Description': desc_str,
-            'Quantity': qty, 'Rate': rate, 'Total': total
+            'Quantity': qty, 'Rate': rate,
+            'Status': self._inp_status.currentText(),
+            'Total': total
         }])
         updated_df = pd.concat([df, new_row], ignore_index=True)
 

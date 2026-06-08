@@ -52,9 +52,10 @@ def run_test():
         "Date": "2026-06-08",
         "Party Name": "ACME Corp",
         "Description": "Initial supply delivery",
+        "Status": "Credit",
         "Quantity": 15.0,
         "Rate": 12.5,
-        "Total": 187.5  # Auto-calculated: 15 * 12.5
+        "Total": 187.5
     }
     with patch.object(QDialog, 'exec', return_value=True):
         with patch.object(TransactionDialog, 'get_data', return_value=mock_data):
@@ -66,9 +67,10 @@ def run_test():
         "Date": "2026-06-07",
         "Party Name": "Globex",
         "Description": "Consulting services",
+        "Status": "Credit",
         "Quantity": 0.0,
         "Rate": 0.0,
-        "Total": 500.0  # Entered directly, no Qty/Rate
+        "Total": 500.0
     }
     with patch.object(QDialog, 'exec', return_value=True):
         with patch.object(TransactionDialog, 'get_data', return_value=mock_data_globex):
@@ -92,9 +94,9 @@ def run_test():
     
     # Let's double check columns from QTableWidget
     table_row_0_party = window.table.item(0, 1).text()
-    table_row_0_total = window.table.item(0, 5).text()
+    table_row_0_total = window.table.item(0, 6).text()
     table_row_1_party = window.table.item(1, 1).text()
-    table_row_1_total = window.table.item(1, 5).text()
+    table_row_1_total = window.table.item(1, 6).text()
 
     print(f"\nTable verified successfully:")
     print(f"Row 0 (Newest): Party={table_row_0_party}, Total={table_row_0_total}")
