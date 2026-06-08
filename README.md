@@ -17,6 +17,34 @@ Built with **PyQt6** (UI), **Pandas** (data operations), **openpyxl** (Excel eng
 - **Single-file storage**: All data in one `ledger.xlsx` file, one sheet per party
 - **Standalone .exe**: No Python installation required for end users
 
+## Download & Installation
+
+### Option 1: Download the .exe (recommended)
+
+1. Go to the **[Releases](https://github.com/mihirpanara11/transaction_app/releases)** page
+2. Download the latest `PartyLedger.exe`
+3. Place it in any folder (e.g. `C:\PartyLedger\`)
+4. Run `PartyLedger.exe` – the app will create `ledger.xlsx` in the same folder
+
+> No Python installation required. Windows only.
+
+### Option 2: Run from source
+
+1. Install Python 3.10+
+2. Clone the repo:
+   ```
+   git clone https://github.com/mihirpanara11/transaction_app.git
+   cd transaction_app
+   ```
+3. Install dependencies:
+   ```
+   pip install PyQt6 pandas openpyxl pyinstaller
+   ```
+4. Run:
+   ```
+   python ledger_app.py
+   ```
+
 ## Usage
 
 1. Run `dist\PartyLedger.exe` (pre-built) or `python ledger_app.py`
