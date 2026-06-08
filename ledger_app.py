@@ -1,0 +1,958 @@
+import sys
+import os
+import pandas as pd
+from datetime import date
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                             QHBoxLayout, QListWidget, QPushButton, QTableWidget, 
+                             QTableWidgetItem, QSplitter, QDialog, 
+                             QFormLayout, QLineEdit, QDateEdit, QHeaderView, QLabel, QMessageBox,
+                             QFileDialog, QDialogButtonBox)
+from PyQt6.QtCore import Qt, QRegularExpression, QDate
+from PyQt6.QtWidgets import QCompleter
+from PyQt6.QtPrintSupport import QPrinter
+from PyQt6.QtGui import QTextDocument, QPageSize, QColor, QRegularExpressionValidator
+
+class CreatePartyDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Create Party")
+        self.resize(440, 180)
+        layout = QFormLayout(self)
+        layout.setSpacing(14)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Enter party name...")
+        layout.addRow("Party Name:", self.name_input)
+
+        self.btn = QPushButton("Create Party")
+        self.btn.clicked.connect(self.accept)
+        layout.addRow(self.btn)
+
+    def accept(self):
+        if not self.name_input.text().strip():
+            QMessageBox.warning(self, "Validation Error", "Party name cannot be empty.")
+            return
+        super().accept()
+
+    def get_name(self):
+        return self.name_input.text().strip()
+
+
+class TransactionDialog(QDialog):
+    def __init__(self, parties, parent=None):
+        super().__init__(parent)
+        self.parties = parties
+        self.setWindowTitle("New Transaction")
+        self.resize(520, 380)
+        layout = QFormLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        self.date_input = QLineEdit()
+        self.date_input.setText(date.today().strftime("%d-%m-%Y"))
+        self.date_input.setPlaceholderText("DD-MM-YYYY")
+        self.party_input = QLineEdit()
+        self.party_input.setPlaceholderText("Type to search party...")
+        completer = QCompleter(parties)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.party_input.setCompleter(completer)
+
+        self.desc_input = QLineEdit()
+        self.qty_input = QLineEdit()
+        self.rate_input = QLineEdit()
+        self.total_input = QLineEdit()
+        self.total_input.setPlaceholderText("Auto or enter directly")
+
+        self.qty_input.textChanged.connect(self.auto_calc_total)
+        self.rate_input.textChanged.connect(self.auto_calc_total)
+
+        layout.addRow("Date:", self.date_input)
+        layout.addRow("Party Name:", self.party_input)
+        layout.addRow("Description:", self.desc_input)
+        layout.addRow("Quantity:", self.qty_input)
+        layout.addRow("Rate:", self.rate_input)
+        layout.addRow("Total:", self.total_input)
+
+        self.btn = QPushButton("Save Transaction")
+        self.btn.setObjectName("btn_save")
+        self.btn.clicked.connect(self.accept)
+        layout.addRow(self.btn)
+
+    def auto_calc_total(self):
+        qty_str = self.qty_input.text().strip()
+        rate_str = self.rate_input.text().strip()
+        if qty_str and rate_str:
+            try:
+                qty = float(qty_str)
+                rate = float(rate_str)
+                self.total_input.setText(str(qty * rate))
+            except ValueError:
+                pass
+
+    def accept(self):
+        date_str = self.date_input.text().strip()
+        party_str = self.party_input.text().strip()
+        qty_str = self.qty_input.text().strip()
+        rate_str = self.rate_input.text().strip()
+        total_str = self.total_input.text().strip()
+
+        if not date_str:
+            QMessageBox.warning(self, "Validation Error", "Date is required.")
+            return
+        if not party_str:
+            QMessageBox.warning(self, "Validation Error", "Please create a party first.")
+            return
+        if party_str not in self.parties:
+            QMessageBox.warning(self, "Validation Error", f"Party '{party_str}' does not exist. Select a valid party.")
+            return
+
+        qty_valid = False
+        rate_valid = False
+        total_valid = False
+
+        if qty_str:
+            try:
+                qty = float(qty_str)
+                if qty >= 0:
+                    qty_valid = True
+                else:
+                    QMessageBox.warning(self, "Validation Error", "Quantity cannot be negative.")
+                    return
+            except ValueError:
+                QMessageBox.warning(self, "Validation Error", "Quantity must be a valid number.")
+                return
+
+        if rate_str:
+            try:
+                rate = float(rate_str)
+                if rate >= 0:
+                    rate_valid = True
+                else:
+                    QMessageBox.warning(self, "Validation Error", "Rate cannot be negative.")
+                    return
+            except ValueError:
+                QMessageBox.warning(self, "Validation Error", "Rate must be a valid number.")
+                return
+
+        if total_str:
+            try:
+                total = float(total_str)
+                if total >= 0:
+                    total_valid = True
+                else:
+                    QMessageBox.warning(self, "Validation Error", "Total cannot be negative.")
+                    return
+            except ValueError:
+                QMessageBox.warning(self, "Validation Error", "Total must be a valid number.")
+                return
+
+        if not ((qty_valid and rate_valid) or total_valid):
+            QMessageBox.warning(self, "Validation Error",
+                "Enter both Quantity & Rate, or enter Total directly.")
+            return
+
+        super().accept()
+
+    def get_data(self):
+        qty_str = self.qty_input.text().strip()
+        rate_str = self.rate_input.text().strip()
+        total_str = self.total_input.text().strip()
+
+        qty = float(qty_str) if qty_str else 0.0
+        rate = float(rate_str) if rate_str else 0.0
+        total = float(total_str) if total_str else (qty * rate)
+
+        return {
+            "Date": self.date_input.text().strip(),
+            "Party Name": self.party_input.text().strip(),
+            "Description": self.desc_input.text().strip(),
+            "Quantity": qty,
+            "Rate": rate,
+            "Total": total
+        }
+
+class LedgerApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.file_path = "ledger.xlsx"
+        self._current_party = None
+        self._date_from = None
+        self._date_to = None
+        self.init_data_file()
+        self.init_ui()
+
+    SHEET_COLUMNS = ['Date', 'Description', 'Quantity', 'Rate', 'Total']
+
+    def init_data_file(self):
+        if not os.path.exists(self.file_path):
+            pd.DataFrame(columns=self.SHEET_COLUMNS).to_excel(self.file_path, sheet_name='Sheet1', index=False)
+
+    def load_all_data(self):
+        try:
+            xl = pd.ExcelFile(self.file_path)
+            all_data = []
+            for sheet in xl.sheet_names:
+                if sheet == 'Sheet1':
+                    continue
+                df = pd.read_excel(self.file_path, sheet_name=sheet)
+                if not df.empty:
+                    df['Party Name'] = sheet
+                    df['_sheet_name'] = sheet
+                    df['_sheet_row'] = df.index
+                    # Ensure Total column exists (backward compat with old sheets)
+                    if 'Total' not in df.columns:
+                        df['Total'] = 0.0
+                    all_data.append(df)
+            cols = ['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total', '_sheet_name', '_sheet_row']
+            return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame(columns=cols)
+        except Exception as e:
+            return pd.DataFrame(columns=['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total', '_sheet_name', '_sheet_row'])
+
+    def init_ui(self):
+        self.setWindowTitle("Party Ledger Manager")
+        self.resize(1300, 800)
+        
+        # Modern Stylesheet
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f8fafc;
+            }
+            QLabel {
+                font-size: 15px;
+                font-weight: bold;
+                color: #475569;
+                margin-top: 12px;
+                margin-bottom: 6px;
+            }
+            QSplitter::handle {
+                background-color: #cbd5e1;
+                width: 2px;
+            }
+            QDialog {
+                background-color: #f8fafc;
+            }
+            QLineEdit {
+                background-color: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px 14px;
+                font-size: 15px;
+                color: #334155;
+                outline: none;
+            }
+            QLineEdit:focus {
+                border-color: #2563eb;
+                outline: none;
+            }
+            QPushButton {
+                background-color: #2563eb;
+                color: white;
+                border-radius: 6px;
+                padding: 12px 20px;
+                font-weight: bold;
+                font-size: 15px;
+                border: none;
+                outline: none;
+            }
+            QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QPushButton:pressed {
+                background-color: #1e40af;
+            }
+            QPushButton:focus {
+                outline: none;
+            }
+            QPushButton#btn_print {
+                background-color: #059669;
+            }
+            QPushButton#btn_print:hover {
+                background-color: #047857;
+            }
+            QPushButton#btn_print:pressed {
+                background-color: #065f46;
+            }
+            QPushButton#btn_date_filter {
+                background-color: #7c3aed;
+            }
+            QPushButton#btn_date_filter:hover {
+                background-color: #6d28d9;
+            }
+            QPushButton#btn_date_filter:pressed {
+                background-color: #5b21b6;
+            }
+            QPushButton#btn_remove {
+                background-color: #dc2626;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            QPushButton#btn_remove:hover {
+                background-color: #b91c1c;
+            }
+            QPushButton#btn_remove:pressed {
+                background-color: #991b1b;
+            }
+            QPushButton#btn_remove_party {
+                background-color: #dc2626;
+            }
+            QPushButton#btn_remove_party:hover {
+                background-color: #b91c1c;
+            }
+            QPushButton#btn_remove_party:pressed {
+                background-color: #991b1b;
+            }
+            QListWidget {
+                background-color: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 8px;
+                font-size: 15px;
+                outline: none;
+            }
+            QListWidget:focus {
+                outline: none;
+            }
+            QListWidget::item {
+                padding: 12px 16px;
+                border-radius: 6px;
+                color: #334155;
+                font-weight: 500;
+            }
+            QListWidget::item:hover {
+                background-color: #f1f5f9;
+                color: #1e293b;
+            }
+            QListWidget::item:selected {
+                background-color: #eff6ff;
+                color: #2563eb;
+                font-weight: bold;
+            }
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                gridline-color: #f1f5f9;
+                font-size: 15px;
+                color: #334155;
+                outline: none;
+            }
+            QTableWidget:focus {
+                outline: none;
+            }
+            QHeaderView::section {
+                background-color: #f8fafc;
+                padding: 14px;
+                font-weight: bold;
+                font-size: 15px;
+                color: #475569;
+                border: none;
+                border-bottom: 2px solid #e2e8f0;
+            }
+            QAbstractItemView {
+                background-color: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 6px;
+                color: #334155;
+                font-size: 14px;
+                outline: none;
+            }
+            QAbstractItemView:focus {
+                outline: none;
+            }
+            QAbstractItemView::item {
+                padding: 8px 12px;
+                border-radius: 4px;
+            }
+            QAbstractItemView::item:hover {
+                background-color: #f1f5f9;
+            }
+            QAbstractItemView::item:selected {
+                background-color: #eff6ff;
+                color: #2563eb;
+            }
+        """)
+
+        main_widget = QWidget()
+        layout = QHBoxLayout(main_widget)
+        
+        # Sidebar
+        self.party_list = QListWidget()
+        self.party_list.itemClicked.connect(self.filter_by_party)
+        btn_add_party = QPushButton("Create Party")
+        btn_add_party.clicked.connect(self.add_party)
+        btn_remove_party = QPushButton("Remove Party")
+        btn_remove_party.setObjectName("btn_remove_party")
+        btn_remove_party.clicked.connect(self.remove_party)
+        
+        sidebar = QVBoxLayout()
+        sidebar.setContentsMargins(12, 12, 12, 12)
+        sidebar.setSpacing(10)
+        sidebar.addWidget(btn_add_party)
+        sidebar.addWidget(btn_remove_party)
+        sidebar.addWidget(QLabel("Parties:"))
+        sidebar.addWidget(self.party_list)
+        
+        # Main Area
+        self.table = QTableWidget()
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        
+        btn_print = QPushButton("Export Report")
+        btn_print.setObjectName("btn_print")
+        btn_print.clicked.connect(self.print_report)
+
+        self.btn_date_filter = QPushButton("Date Filter")
+        self.btn_date_filter.setObjectName("btn_date_filter")
+        self.btn_date_filter.clicked.connect(self._apply_date_filter)
+        
+        main_area = QVBoxLayout()
+        main_area.setContentsMargins(12, 12, 12, 12)
+        main_area.setSpacing(12)
+        
+        top_bar = QHBoxLayout()
+        top_bar.setSpacing(12)
+        top_bar.addWidget(self.btn_date_filter)
+        top_bar.addStretch()
+        top_bar.addWidget(btn_print)
+        
+        main_area.addLayout(top_bar)
+        main_area.addWidget(self.table)
+        
+        # Layout Assembly
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        side_widget = QWidget()
+        side_widget.setLayout(sidebar)
+        main_widget_area = QWidget()
+        main_widget_area.setLayout(main_area)
+        
+        splitter.addWidget(side_widget)
+        splitter.addWidget(main_widget_area)
+        splitter.setSizes([300, 1000])  # Initial column split width
+        
+        layout.addWidget(splitter)
+        self.setCentralWidget(main_widget)
+        self.refresh_view()
+
+    def refresh_view(self, df=None):
+        if df is None:
+            self._current_party = None
+            df = self.load_all_data()
+        
+        # Always build a clean DataFrame with the 6 columns in fixed order.
+        cols = ['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total']
+
+        if not df.empty:
+            meta_cols = ['_sheet_name', '_sheet_row']
+            meta = df[meta_cols].copy() if all(c in df.columns for c in meta_cols) else None
+
+            for c in ['Quantity', 'Rate', 'Total']:
+                if c not in df.columns:
+                    df[c] = 0.0
+                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+            calc_total = df['Quantity'] * df['Rate']
+            mask = (df['Total'] == 0) & (calc_total != 0)
+            df.loc[mask, 'Total'] = calc_total[mask]
+            df['Party Name'] = df.get('Party Name', '')
+            df['Date'] = df.get('Date', '').astype(str)
+            df['Description'] = df.get('Description', '').astype(str)
+
+            df['_date_parsed'] = pd.to_datetime(df['Date'], format='%d-%m-%Y', errors='coerce')
+
+            if self._date_from and self._date_to:
+                from_dt = pd.to_datetime(self._date_from, format='%d-%m-%Y', errors='coerce')
+                to_dt = pd.to_datetime(self._date_to, format='%d-%m-%Y', errors='coerce')
+                if pd.notna(from_dt) and pd.notna(to_dt):
+                    mask = (df['_date_parsed'] >= from_dt) & (df['_date_parsed'] <= to_dt)
+                    df = df[mask]
+                    if meta is not None:
+                        meta = meta.loc[df.index]
+            sort_idx = df.sort_values(by='_date_parsed', ascending=False).index
+            df = df.loc[sort_idx]
+            if meta is not None:
+                meta = meta.loc[sort_idx]
+            clean = df.reindex(columns=cols).fillna('')
+        else:
+            clean = pd.DataFrame(columns=cols)
+            meta = None
+
+        self.table.setRowCount(0)
+        self.table.setColumnCount(0)
+        self.table.setColumnCount(7)
+        headers = cols + ['Action']
+        self.table.setHorizontalHeaderLabels(headers)
+
+        show_input = self._current_party is not None
+        show_party = self._current_party is None
+        self.table.setColumnHidden(1, not show_party)
+        grand_total = pd.to_numeric(clean['Total'], errors='coerce').sum()
+
+        if show_input:
+            self.table.setRowCount(len(clean) + 2)  # input + data + total
+            inp_style = "border: none; background: #f8fafc; padding: 2px 6px; font-size: 15px;"
+            row_h = 48
+            self.table.setRowHeight(0, row_h)
+            # Row 0: inline input row
+            self._inp_date = QLineEdit()
+            self._inp_date.setText(date.today().strftime("%d-%m-%Y"))
+            self._inp_date.setPlaceholderText("DD-MM-YYYY")
+            self._inp_date.setStyleSheet(inp_style)
+            self._inp_date.returnPressed.connect(self._add_inline_transaction)
+            self.table.setCellWidget(0, 0, self._inp_date)
+
+            party_label = QLabel(self._current_party)
+            party_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            party_label.setStyleSheet("font-weight: bold; color: #2563eb; border: none; background: #f8fafc;")
+            self.table.setCellWidget(0, 1, party_label)
+
+            self._inp_desc = QLineEdit()
+            self._inp_desc.setPlaceholderText("Description")
+            self._inp_desc.setStyleSheet(inp_style)
+            self._inp_desc.returnPressed.connect(self._add_inline_transaction)
+            self.table.setCellWidget(0, 2, self._inp_desc)
+
+            num_validator = QRegularExpressionValidator(QRegularExpression(r'^\d*\.?\d*$'))
+
+            self._inp_qty = QLineEdit()
+            self._inp_qty.setPlaceholderText("Qty")
+            self._inp_qty.setStyleSheet(inp_style)
+            self._inp_qty.setValidator(num_validator)
+            self._inp_qty.textChanged.connect(self._inline_auto_calc)
+            self._inp_qty.returnPressed.connect(self._add_inline_transaction)
+            self.table.setCellWidget(0, 3, self._inp_qty)
+
+            self._inp_rate = QLineEdit()
+            self._inp_rate.setPlaceholderText("Rate")
+            self._inp_rate.setStyleSheet(inp_style)
+            self._inp_rate.setValidator(num_validator)
+            self._inp_rate.textChanged.connect(self._inline_auto_calc)
+            self._inp_rate.returnPressed.connect(self._add_inline_transaction)
+            self.table.setCellWidget(0, 4, self._inp_rate)
+
+            self._inp_total = QLineEdit()
+            self._inp_total.setPlaceholderText("Auto")
+            self._inp_total.setStyleSheet(inp_style)
+            self._inp_total.setValidator(num_validator)
+            self._inp_total.textChanged.connect(self._on_total_changed)
+            self._inp_total.returnPressed.connect(self._add_inline_transaction)
+            self.table.setCellWidget(0, 5, self._inp_total)
+
+            btn_add = QPushButton("Add")
+            btn_add.setObjectName("btn_remove")
+            btn_add.clicked.connect(self._add_inline_transaction)
+            self.table.setCellWidget(0, 6, btn_add)
+
+        offset = 1 if show_input else 0
+        if not show_input:
+            self.table.setRowCount(len(clean) + 1)  # data + total
+        for i in range(len(clean)):
+            table_row = i + offset
+            if show_input:
+                self.table.setRowHeight(table_row, row_h)
+            for j, col in enumerate(cols):
+                val = clean.iloc[i][col]
+                s = str(val) if pd.notna(val) else ''
+                if s.lower() in ('nan', 'none', 'nat'):
+                    s = ''
+                item = QTableWidgetItem(s)
+                if meta is not None:
+                    item.setData(Qt.ItemDataRole.UserRole, (meta.iloc[i]['_sheet_name'], meta.iloc[i]['_sheet_row']))
+                if j == 1 and self._current_party is not None:
+                    item.setBackground(QColor('#eff6ff'))
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                self.table.setItem(table_row, j, item)
+            btn = QPushButton("Remove")
+            btn.setObjectName("btn_remove")
+            btn.clicked.connect(lambda checked, r=table_row: self.remove_transaction(r))
+            self.table.setCellWidget(table_row, 6, btn)
+        
+        # Grand total row
+        total_row = offset + len(clean)
+        self.table.setRowHeight(total_row, 42)
+        gt_item = QTableWidgetItem("Grand Total")
+        gt_font = gt_item.font()
+        gt_font.setBold(True)
+        gt_item.setFont(gt_font)
+        gt_item.setBackground(QColor('#f1f5f9'))
+        gt_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.table.setItem(total_row, 0, gt_item)
+        for j in range(1, 6):
+            item = QTableWidgetItem("")
+            item.setBackground(QColor('#f1f5f9'))
+            self.table.setItem(total_row, j, item)
+        total_val = QTableWidgetItem(f"{grand_total}")
+        total_val.setFont(gt_font)
+        total_val.setBackground(QColor('#f1f5f9'))
+        total_val.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.table.setItem(total_row, 5, total_val)
+        
+        # Update party list
+        self.party_list.clear()
+        xl = pd.ExcelFile(self.file_path)
+        parties = [sheet for sheet in xl.sheet_names if sheet != 'Sheet1']
+        self.party_list.addItems(parties)
+        # Re-select current filtered party
+        if self._current_party is not None:
+            items = self.party_list.findItems(self._current_party, Qt.MatchFlag.MatchExactly)
+            if items:
+                self.party_list.setCurrentItem(items[0])
+
+    def print_report(self):
+        party_name = getattr(self, '_current_party', None)
+        df = self.load_all_data()
+        if party_name:
+            df = df[df['Party Name'] == party_name]
+            title = f"Party Ledger � {party_name}"
+            suggested = f"{party_name}_ledger.pdf"
+        else:
+            title = "Party Ledger � All Parties"
+            suggested = "all_parties_ledger.pdf"
+
+        if self._date_from and self._date_to:
+            df['_pdf_date'] = pd.to_datetime(df['Date'], format='%d-%m-%Y', errors='coerce')
+            from_dt = pd.to_datetime(self._date_from, format='%d-%m-%Y')
+            to_dt = pd.to_datetime(self._date_to, format='%d-%m-%Y')
+            df = df[(df['_pdf_date'] >= from_dt) & (df['_pdf_date'] <= to_dt)]
+            df = df.drop(columns=['_pdf_date'])
+
+        if df.empty:
+            QMessageBox.information(self, "Export PDF", "No transactions to export.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save PDF Report", suggested,
+            "PDF Files (*.pdf)")
+        if not file_path:
+            return
+
+        df = df.copy()
+        df['Total'] = pd.to_numeric(df.get('Total', 0), errors='coerce').fillna(0)
+        calc = pd.to_numeric(df['Quantity'], errors='coerce').fillna(0) * pd.to_numeric(df['Rate'], errors='coerce').fillna(0)
+        mask = (df['Total'] == 0) & (calc != 0)
+        df.loc[mask, 'Total'] = calc[mask]
+        df['_date_parsed'] = pd.to_datetime(df['Date'], format='%d-%m-%Y', errors='coerce')
+        df = df.sort_values(by='_date_parsed', ascending=False)
+
+        grand_total = df['Total'].sum()
+        show_party = party_name is None
+
+        cols = ['Date', 'Description', 'Quantity', 'Rate', 'Total']
+        headers = ['Date', 'Description', 'Qty', 'Rate', 'Total']
+        if show_party:
+            cols = ['Date', 'Party Name', 'Description', 'Quantity', 'Rate', 'Total']
+            headers = ['Date', 'Party', 'Description', 'Qty', 'Rate', 'Total']
+
+        rows_html = ''
+        for _, row in df.iterrows():
+            rows_html += '<tr>'
+            for col in cols:
+                val = row.get(col, '')
+                s = str(val) if pd.notna(val) else ''
+                if s.lower() in ('nan', 'none', 'nat'):
+                    s = ''
+                rows_html += f'<td>{s}</td>'
+            rows_html += '</tr>'
+        n_cols = len(cols)
+        colspan = n_cols - 1
+        rows_html += f'<tr style="font-weight: bold; background-color: #f1f5f9;"><td colspan="{colspan}" style="text-align: right; padding: 8px;">Grand Total</td><td style="padding: 8px;">{grand_total}</td></tr>'
+
+        today = date.today().strftime('%d-%m-%Y %H:%M')
+        header_cells = ''.join(f'<th>{h}</th>' for h in headers)
+        html = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; }}
+  h1 {{ font-size: 20pt; color: #1e293b; margin-bottom: 6pt; }}
+  .meta {{ color: #64748b; font-size: 10pt; margin-bottom: 12pt; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  th {{ background-color: #e2e8f0; font-weight: bold; padding: 8px; border: 1px solid #64748b; }}
+  td {{ padding: 6px; border: 1px solid #64748b; }}
+  .footer {{ margin-top: 15pt; font-size: 9pt; color: #94a3b8; text-align: center; }}
+</style></head><body>
+<h1>{title}</h1>
+<div class="meta">Exported: {today} &nbsp;|&nbsp; Transactions: {len(df)}</div>
+<table border="1" cellspacing="0" cellpadding="5" width="100%" style="border-collapse: collapse;">
+  <tr bgcolor="#e2e8f0">
+    {header_cells}
+  </tr>
+  {rows_html}
+</table>
+<div class="footer">Generated by Party Ledger Manager</div>
+</body></html>'''
+
+        try:
+            doc = QTextDocument()
+            doc.setHtml(html)
+
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(file_path)
+            printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+            doc.print(printer)
+
+            QMessageBox.information(self, "Export PDF",
+                f"PDF saved successfully:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export PDF Error",
+                f"Failed to create PDF:\n{str(e)}")
+
+    def _apply_date_filter(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Date Filter")
+        dialog.resize(380, 240)
+        layout = QFormLayout(dialog)
+        layout.setSpacing(14)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        from_input = QLineEdit()
+        from_input.setPlaceholderText("DD-MM-YYYY")
+        if self._date_from:
+            from_input.setText(self._date_from)
+
+        to_input = QLineEdit()
+        to_input.setPlaceholderText("DD-MM-YYYY")
+        if self._date_to:
+            to_input.setText(self._date_to)
+
+        layout.addRow("From:", from_input)
+        layout.addRow("To:", to_input)
+
+        btn_box = QDialogButtonBox()
+        btn_box.addButton(QDialogButtonBox.StandardButton.Ok)
+        btn_box.addButton(QDialogButtonBox.StandardButton.Cancel)
+        clear_btn = btn_box.addButton("Clear Filter", QDialogButtonBox.ButtonRole.ResetRole)
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+
+        cleared = False
+        def do_clear():
+            nonlocal cleared
+            cleared = True
+            dialog.accept()
+        clear_btn.clicked.connect(do_clear)
+
+        layout.addRow(btn_box)
+
+        if dialog.exec():
+            if cleared:
+                self._date_from = None
+                self._date_to = None
+                self.btn_date_filter.setText("Date Filter")
+                self.refresh_view()
+            else:
+                f = from_input.text().strip()
+                t = to_input.text().strip()
+                if not f or not t:
+                    QMessageBox.warning(dialog, "Date Filter", "Enter both From and To dates in DD-MM-YYYY format, or use Clear Filter.")
+                    return
+                fd = QDate.fromString(f, "dd-MM-yyyy")
+                td = QDate.fromString(t, "dd-MM-yyyy")
+                if not fd.isValid() or not td.isValid():
+                    QMessageBox.warning(dialog, "Date Filter", "Invalid date format. Use DD-MM-YYYY (e.g. 01-06-2026).")
+                    return
+                if fd > td:
+                    f, t = t, f
+                self._date_from = f
+                self._date_to = t
+                self.btn_date_filter.setText(f"Date Filter ({f} - {t})")
+                self.refresh_view()
+
+    def filter_by_party(self, item):
+        party_name = item.text()
+        # Toggle: click same party again shows all
+        if hasattr(self, '_current_party') and self._current_party == party_name:
+            self._current_party = None
+            self.refresh_view()
+            return
+        self._current_party = party_name
+        df = self.load_all_data()
+        filtered_df = df[df['Party Name'] == party_name]
+        self.refresh_view(filtered_df)
+
+    def add_party(self):
+        dialog = CreatePartyDialog(self)
+        if dialog.exec():
+            name = dialog.get_name()
+            with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
+                pd.DataFrame(columns=self.SHEET_COLUMNS).to_excel(writer, sheet_name=name, index=False)
+            self.refresh_view()
+
+    def add_transaction(self):
+        xl = pd.ExcelFile(self.file_path)
+        parties = [sheet for sheet in xl.sheet_names if sheet != 'Sheet1']
+        dialog = TransactionDialog(parties, self)
+        if dialog.exec():
+            data = dialog.get_data()
+            if data:
+                try:
+                    df = pd.read_excel(self.file_path, sheet_name=data['Party Name'])
+                except Exception:
+                    QMessageBox.warning(self, "Error", f"Party '{data['Party Name']}' not found.")
+                    return
+                # Ensure all expected columns exist
+                for col in self.SHEET_COLUMNS:
+                    if col not in df.columns:
+                        df[col] = 0.0
+                df = df[self.SHEET_COLUMNS]
+                
+                new_row = pd.DataFrame([{
+                    'Date': data['Date'],
+                    'Description': data['Description'],
+                    'Quantity': data['Quantity'],
+                    'Rate': data['Rate'],
+                    'Total': data['Total']
+                }])
+                updated_df = pd.concat([df, new_row], ignore_index=True)
+                
+                with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+                    updated_df.to_excel(writer, sheet_name=data['Party Name'], index=False)
+                self.refresh_view()
+            else:
+                QMessageBox.warning(self, "Error", "Invalid data input")
+
+    def remove_transaction(self, row):
+        item = self.table.item(row, 0)
+        if not item:
+            return
+        meta = item.data(Qt.ItemDataRole.UserRole)
+        if not meta:
+            return
+        sheet_name, sheet_row = meta
+        reply = QMessageBox.question(self, "Remove Transaction",
+            f"Delete this transaction from '{sheet_name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        df = pd.read_excel(self.file_path, sheet_name=sheet_name)
+        df = df.drop(index=sheet_row, errors='ignore').reset_index(drop=True)
+        with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+        if self._current_party:
+            df = self.load_all_data()
+            self.refresh_view(df[df['Party Name'] == self._current_party])
+        else:
+            self.refresh_view()
+
+    def remove_party(self):
+        selected = self.party_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self, "Remove Party", "Select a party from the list first.")
+            return
+        party_name = selected.text()
+        reply = QMessageBox.question(self, "Remove Party",
+            f"Delete party '{party_name}' and all its transactions?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+            pd.DataFrame().to_excel(writer, sheet_name=party_name, index=False)
+        # Delete the sheet entirely
+        import openpyxl
+        wb = openpyxl.load_workbook(self.file_path)
+        if party_name in wb.sheetnames:
+            del wb[party_name]
+        wb.save(self.file_path)
+        wb.close()
+        if self._current_party == party_name:
+            self._current_party = None
+        self.refresh_view()
+
+    def _on_total_changed(self):
+        total_str = self._inp_total.text().strip()
+        if total_str:
+            self._inp_qty.blockSignals(True)
+            self._inp_rate.blockSignals(True)
+            self._inp_qty.clear()
+            self._inp_rate.clear()
+            self._inp_qty.setReadOnly(True)
+            self._inp_rate.setReadOnly(True)
+            self._inp_qty.blockSignals(False)
+            self._inp_rate.blockSignals(False)
+        else:
+            self._inp_qty.setReadOnly(False)
+            self._inp_rate.setReadOnly(False)
+
+    def _inline_auto_calc(self):
+        qty_str = self._inp_qty.text().strip()
+        rate_str = self._inp_rate.text().strip()
+        if qty_str and rate_str:
+            try:
+                qty = float(qty_str)
+                rate = float(rate_str)
+                self._inp_total.blockSignals(True)
+                self._inp_total.setReadOnly(True)
+                self._inp_total.setText(str(qty * rate))
+                self._inp_total.blockSignals(False)
+            except ValueError:
+                pass
+        elif qty_str or rate_str:
+            if not self._inp_total.isReadOnly():
+                self._inp_total.blockSignals(True)
+                self._inp_total.clear()
+                self._inp_total.setReadOnly(True)
+                self._inp_total.blockSignals(False)
+        else:
+            if self._inp_total.isReadOnly():
+                self._inp_total.blockSignals(True)
+                self._inp_total.clear()
+                self._inp_total.setReadOnly(False)
+                self._inp_total.blockSignals(False)
+
+    def _add_inline_transaction(self):
+        date_str = self._inp_date.text().strip()
+        desc_str = self._inp_desc.text().strip()
+        qty_str = self._inp_qty.text().strip()
+        rate_str = self._inp_rate.text().strip()
+        total_str = self._inp_total.text().strip()
+        party_name = self._current_party
+
+        if not date_str:
+            QMessageBox.warning(self, "Validation Error", "Date is required.")
+            return
+        if not party_name:
+            QMessageBox.warning(self, "Validation Error", "No party selected.")
+            return
+
+        qty = float(qty_str) if qty_str else 0.0
+        rate = float(rate_str) if rate_str else 0.0
+        total = float(total_str) if total_str else (qty * rate)
+
+        if not ((qty_str and rate_str) or total_str):
+            QMessageBox.warning(self, "Validation Error",
+                "Enter both Quantity & Rate, or enter Total directly.")
+            return
+
+        try:
+            df = pd.read_excel(self.file_path, sheet_name=party_name)
+        except Exception:
+            QMessageBox.warning(self, "Error", f"Party '{party_name}' not found.")
+            return
+        for col in self.SHEET_COLUMNS:
+            if col not in df.columns:
+                df[col] = 0.0
+        df = df[self.SHEET_COLUMNS]
+
+        new_row = pd.DataFrame([{
+            'Date': date_str, 'Description': desc_str,
+            'Quantity': qty, 'Rate': rate, 'Total': total
+        }])
+        updated_df = pd.concat([df, new_row], ignore_index=True)
+
+        with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+            updated_df.to_excel(writer, sheet_name=party_name, index=False)
+        df = self.load_all_data()
+        self.refresh_view(df[df['Party Name'] == party_name])
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = LedgerApp()
+    window.show()
+    sys.exit(app.exec())
