@@ -584,12 +584,13 @@ class LedgerApp(QMainWindow):
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                self.table.setItem(table_row, j, item)
+                if j != 3:
+                    self.table.setItem(table_row, j, item)
                 if j == 3:
                     cb = QComboBox()
                     cb.addItems(["Credit", "Debit"])
-                    cb.setCurrentText(s)
                     cb.setStyleSheet("border: none; background: transparent; padding: 2px 6px; font-size: 15px;")
+                    cb.setCurrentText(s)
                     cb.currentTextChanged.connect(lambda txt, r=table_row: self._update_status(r, txt))
                     self.table.setCellWidget(table_row, 3, cb)
             btn = QPushButton("Remove")
@@ -854,10 +855,32 @@ class LedgerApp(QMainWindow):
             return
         sheet_name, sheet_row = meta
         df = pd.read_excel(self.file_path, sheet_name=sheet_name)
-        if sheet_row < len(df):
-            df.loc[sheet_row, 'Status'] = new_status
-            with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
-                df.to_excel(writer, sheet_name=sheet_name, index=False)
+        if sheet_row >= len(df):
+            return
+        old_status = str(df.loc[sheet_row, 'Status']) if 'Status' in df.columns else 'Credit'
+
+        parts = []
+        for c in range(7):
+            it = self.table.item(row, c)
+            if it:
+                label = ['Date', 'Party', 'Description', 'Status', 'Qty', 'Rate', 'Total'][c]
+                parts.append(f"{label}: {it.text()}")
+        context = '\n'.join(parts)
+
+        reply = QMessageBox.question(self, "Change Status",
+            f"Change status from {old_status} to {new_status}?\n\n{context}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            cb = self.table.cellWidget(row, 3)
+            if cb:
+                cb.blockSignals(True)
+                cb.setCurrentText(old_status)
+                cb.blockSignals(False)
+            return
+
+        df.loc[sheet_row, 'Status'] = new_status
+        with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
 
     def remove_transaction(self, row):
         item = self.table.item(row, 0)
