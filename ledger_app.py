@@ -1063,7 +1063,7 @@ class LedgerApp(QMainWindow):
             dialog.accept()
         clear_btn.clicked.connect(do_clear)
 
-        layout.addRow(btn_box)
+        layout.addWidget(btn_box)
 
         if dialog.exec():
             if cleared:
