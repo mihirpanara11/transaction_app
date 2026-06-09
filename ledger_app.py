@@ -210,6 +210,7 @@ class LedgerApp(QMainWindow):
         super().__init__()
         self.file_path = "ledger.xlsx"
         self._current_party = None
+        self._status_filter = None
         self._date_from = None
         self._date_to = None
         self.init_data_file()
@@ -594,6 +595,38 @@ class LedgerApp(QMainWindow):
         self.party_count_label.setObjectName("party_count")
         sidebar.addWidget(self.party_count_label)
 
+        # Status filter buttons
+        filter_layout = QHBoxLayout()
+        filter_layout.setSpacing(4)
+        self._btn_filter_all = QPushButton("All")
+        self._btn_filter_all.setCheckable(True)
+        self._btn_filter_all.setChecked(True)
+        self._btn_filter_receive = QPushButton("To Receive")
+        self._btn_filter_receive.setCheckable(True)
+        self._btn_filter_pay = QPushButton("To Pay")
+        self._btn_filter_pay.setCheckable(True)
+        for btn in [self._btn_filter_all, self._btn_filter_receive, self._btn_filter_pay]:
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #ffffff; color: #64748b; border: 1px solid #e2e8f0;
+                    border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: 500;
+                    outline: none;
+                }
+                QPushButton:hover {
+                    background-color: #f1f5f9; border-color: #cbd5e1;
+                }
+                QPushButton:checked {
+                    background-color: #eef2ff; color: #6366f1; border-color: #a5b4fc;
+                }
+            """)
+        self._btn_filter_all.clicked.connect(lambda: self._set_status_filter(None))
+        self._btn_filter_receive.clicked.connect(lambda: self._set_status_filter('To Receive'))
+        self._btn_filter_pay.clicked.connect(lambda: self._set_status_filter('To Pay'))
+        filter_layout.addWidget(self._btn_filter_all)
+        filter_layout.addWidget(self._btn_filter_receive)
+        filter_layout.addWidget(self._btn_filter_pay)
+        sidebar.addLayout(filter_layout)
+
         self.party_list = QListWidget()
         self.party_list.itemClicked.connect(self.filter_by_party)
 
@@ -696,6 +729,11 @@ class LedgerApp(QMainWindow):
                     df = df[mask]
                     if meta is not None:
                         meta = meta.loc[df.index]
+            if self._status_filter:
+                mask = df['Status'] == self._status_filter
+                df = df[mask]
+                if meta is not None:
+                    meta = meta.loc[df.index]
             sort_idx = df.sort_values(by='_date_parsed', ascending=False).index
             df = df.loc[sort_idx]
             if meta is not None:
@@ -1056,6 +1094,18 @@ class LedgerApp(QMainWindow):
                 self.btn_date_filter.style().unpolish(self.btn_date_filter)
                 self.btn_date_filter.style().polish(self.btn_date_filter)
                 self.refresh_view()
+
+    def _set_status_filter(self, status):
+        self._status_filter = status
+        # Update button checked states
+        self._btn_filter_all.setChecked(status is None)
+        self._btn_filter_receive.setChecked(status == 'To Receive')
+        self._btn_filter_pay.setChecked(status == 'To Pay')
+        # Re-load data and re-apply current party filter if any
+        df = self.load_all_data()
+        if self._current_party:
+            df = df[df['Party Name'] == self._current_party]
+        self.refresh_view(df)
 
     def filter_by_party(self, item):
         party_name = item.text()
