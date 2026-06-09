@@ -526,6 +526,14 @@ class LedgerApp(QMainWindow):
             self._inp_desc.setPlaceholderText("Description")
             self._inp_desc.setStyleSheet(inp_style)
             self._inp_desc.returnPressed.connect(self._add_inline_transaction)
+            # Description autocomplete from all existing entries
+            all_data = self.load_all_data()
+            all_descs = sorted(set(all_data['Description'].dropna().astype(str).tolist()))
+            desc_completer = QCompleter(all_descs)
+            desc_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            desc_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            desc_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            self._inp_desc.setCompleter(desc_completer)
             self.table.setCellWidget(0, 2, self._inp_desc)
 
             self._inp_status = QComboBox()
