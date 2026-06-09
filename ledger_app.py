@@ -89,7 +89,7 @@ class TransactionDialog(QDialog):
 
         self.desc_input = QLineEdit()
         self.status_input = QComboBox()
-        self.status_input.addItems(["Credit", "Debit"])
+        self.status_input.addItems(["To Receive", "To Pay"])
         self.qty_input = QLineEdit()
         self.rate_input = QLineEdit()
         self.total_input = QLineEdit()
@@ -715,7 +715,7 @@ class LedgerApp(QMainWindow):
         show_party = self._current_party is None
         self.table.setColumnHidden(1, not show_party)
         clean['Total'] = pd.to_numeric(clean['Total'], errors='coerce').fillna(0.0)
-        credit_mask = clean['Status'] == 'Credit'
+        credit_mask = clean['Status'] == 'To Receive'
         grand_total = clean.loc[credit_mask, 'Total'].sum() - clean.loc[~credit_mask, 'Total'].sum()
 
         if show_input:
@@ -751,7 +751,7 @@ class LedgerApp(QMainWindow):
             self.table.setCellWidget(0, 2, self._inp_desc)
 
             self._inp_status = QComboBox()
-            self._inp_status.addItems(["Credit", "Debit"])
+            self._inp_status.addItems(["To Receive", "To Pay"])
             self._inp_status.setStyleSheet("border: none; background: transparent; padding: 4px 8px; font-size: 14px; color: #1e293b;")
             self.table.setCellWidget(0, 3, self._inp_status)
 
@@ -794,6 +794,12 @@ class LedgerApp(QMainWindow):
             table_row = i + offset
             if show_input:
                 self.table.setRowHeight(table_row, row_h)
+            row_status = str(clean.iloc[i]['Status']) if 'Status' in clean.columns else ''
+            row_bg = None
+            if row_status == 'To Receive':
+                row_bg = QColor('#f0fdf4')
+            elif row_status == 'To Pay':
+                row_bg = QColor('#fef2f2')
             for j, col in enumerate(cols):
                 val = clean.iloc[i][col]
                 s = str(val) if pd.notna(val) else ''
@@ -812,12 +818,15 @@ class LedgerApp(QMainWindow):
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
+                elif row_bg is not None and j != 3:
+                    item.setBackground(row_bg)
                 if j != 3:
                     self.table.setItem(table_row, j, item)
                 if j == 3:
                     cb = QComboBox()
-                    cb.addItems(["Credit", "Debit"])
-                    cb.setStyleSheet("border: none; background: white; padding: 2px 6px; font-size: 15px; color: #000000;")
+                    cb.addItems(["To Receive", "To Pay"])
+                    bg_color = '#f0fdf4' if row_status == 'To Receive' else '#fef2f2' if row_status == 'To Pay' else 'white'
+                    cb.setStyleSheet(f"border: none; background: {bg_color}; padding: 2px 6px; font-size: 15px; color: #000000;")
                     cb.setCurrentText(s)
                     cb.currentTextChanged.connect(lambda txt, r=table_row: self._update_status(r, txt))
                     self.table.setCellWidget(table_row, 3, cb)
@@ -904,7 +913,7 @@ class LedgerApp(QMainWindow):
 
         if 'Status' not in df.columns:
             df['Status'] = 'Credit'
-        credit_mask = df['Status'] == 'Credit'
+        credit_mask = df['Status'] == 'To Receive'
         grand_total = df.loc[credit_mask, 'Total'].sum() - df.loc[~credit_mask, 'Total'].sum()
         show_party = party_name is None
 
