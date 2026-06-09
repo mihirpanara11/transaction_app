@@ -12,6 +12,27 @@ from PyQt6.QtWidgets import QCompleter
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtGui import QTextDocument, QPageSize, QColor, QRegularExpressionValidator
 
+def indian_format(n):
+    """Format a number in the Indian numbering system (e.g. 1,23,456.78)."""
+    s = f"{n:.2f}"
+    sign = ''
+    if s.startswith('-'):
+        sign = '-'
+        s = s[1:]
+    int_part, dec_part = s.split('.')
+    dec_part = dec_part.rstrip('0')
+    dec_part = f".{dec_part}" if dec_part else ''
+    if len(int_part) > 3:
+        last3 = int_part[-3:]
+        rest = int_part[:-3]
+        groups = []
+        while rest:
+            groups.append(rest[-2:])
+            rest = rest[:-2]
+        groups.reverse()
+        return sign + ','.join(groups) + ',' + last3 + dec_part
+    return sign + int_part + dec_part
+
 class CreatePartyDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -584,6 +605,11 @@ class LedgerApp(QMainWindow):
                 s = str(val) if pd.notna(val) else ''
                 if s.lower() in ('nan', 'none', 'nat'):
                     s = ''
+                if j in (5, 6):
+                    try:
+                        s = indian_format(float(val))
+                    except (ValueError, TypeError):
+                        pass
                 item = QTableWidgetItem(s)
                 if meta is not None:
                     item.setData(Qt.ItemDataRole.UserRole, (meta.iloc[i]['_sheet_name'], meta.iloc[i]['_sheet_row']))
@@ -620,7 +646,7 @@ class LedgerApp(QMainWindow):
             item = QTableWidgetItem("")
             item.setBackground(QColor('#f1f5f9'))
             self.table.setItem(total_row, j, item)
-        total_val = QTableWidgetItem(f"{grand_total}")
+        total_val = QTableWidgetItem(indian_format(grand_total))
         total_val.setFont(gt_font)
         total_val.setBackground(QColor('#f1f5f9'))
         total_val.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -693,11 +719,16 @@ class LedgerApp(QMainWindow):
                 s = str(val) if pd.notna(val) else ''
                 if s.lower() in ('nan', 'none', 'nat'):
                     s = ''
+                if col in ('Rate', 'Total'):
+                    try:
+                        s = indian_format(float(val))
+                    except (ValueError, TypeError):
+                        pass
                 rows_html += f'<td>{s}</td>'
             rows_html += '</tr>'
         n_cols = len(cols)
         colspan = n_cols - 1
-        rows_html += f'<tr style="font-weight: bold; background-color: #f1f5f9;"><td colspan="{colspan}" style="text-align: right; padding: 8px;">Grand Total</td><td style="padding: 8px;">{grand_total}</td></tr>'
+        rows_html += f'<tr style="font-weight: bold; background-color: #f1f5f9;"><td colspan="{colspan}" style="text-align: right; padding: 8px;">Grand Total</td><td style="padding: 8px;">{indian_format(grand_total)}</td></tr>'
 
         today = date.today().strftime('%d-%m-%Y %H:%M')
         header_cells = ''.join(f'<th>{h}</th>' for h in headers)

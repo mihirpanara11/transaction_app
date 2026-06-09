@@ -105,7 +105,7 @@ def run_test():
     assert table_row_0_party == "ACME Corp"
     assert table_row_0_total == "187.5" # 15.0 * 12.5 = 187.5
     assert table_row_1_party == "Globex"
-    assert table_row_1_total == "500.0" # 5.0 * 100.0 = 500.0
+    assert table_row_1_total == "500" # 5.0 * 100.0 = 500.0
     
     print("\nAll programmatic automation tests passed flawlessly!")
 
