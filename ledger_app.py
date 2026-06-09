@@ -36,19 +36,25 @@ def indian_format(n):
 class CreatePartyDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Create Party")
-        self.resize(440, 180)
-        layout = QFormLayout(self)
-        layout.setSpacing(14)
-        layout.setContentsMargins(24, 24, 24, 24)
+        self.setWindowTitle("New Party")
+        self.resize(420, 200)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(28, 28, 28, 28)
+
+        heading = QLabel("Create a New Party")
+        heading.setStyleSheet("font-size: 18px; font-weight: 700; color: #0f172a;")
+        layout.addWidget(heading)
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Enter party name...")
-        layout.addRow("Party Name:", self.name_input)
+        layout.addWidget(self.name_input)
 
-        self.btn = QPushButton("Create Party")
+        self.btn = QPushButton("  + Create Party")
+        self.btn.setObjectName("btn_dialog_add")
         self.btn.clicked.connect(self.accept)
-        layout.addRow(self.btn)
+        layout.addWidget(self.btn)
+        layout.addStretch()
 
     def accept(self):
         if not self.name_input.text().strip():
@@ -241,60 +247,151 @@ class LedgerApp(QMainWindow):
     def init_ui(self):
         self.setWindowTitle("Party Ledger Manager")
         self.resize(1300, 800)
-        
-        # Modern Stylesheet
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f8fafc;
+
+        STYLE = """
+            QMainWindow, QWidget {
+                background-color: #f1f5f9;
             }
             QLabel {
-                font-size: 15px;
-                font-weight: bold;
-                color: #475569;
-                margin-top: 12px;
+                font-size: 14px;
+                color: #334155;
+            }
+            QLabel#sidebar_title {
+                font-size: 13px;
+                font-weight: 700;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                padding: 0 4px;
+                margin-bottom: 4px;
+            }
+            QLabel#party_count {
+                font-size: 12px;
+                color: #94a3b8;
+                padding: 0 4px;
                 margin-bottom: 6px;
             }
             QSplitter::handle {
-                background-color: #cbd5e1;
-                width: 2px;
+                background-color: #e2e8f0;
+                width: 1px;
             }
             QDialog {
-                background-color: #f8fafc;
+                background-color: #ffffff;
+                border-radius: 12px;
             }
             QLineEdit {
-                background-color: white;
+                background-color: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 10px 14px;
-                font-size: 15px;
-                color: #334155;
+                font-size: 14px;
+                color: #1e293b;
                 outline: none;
+                selection-background-color: #6366f1;
+                selection-color: white;
             }
             QLineEdit:focus {
-                border-color: #2563eb;
+                border-color: #6366f1;
+                border-width: 2px;
+                padding: 9px 13px;
+            }
+            QLineEdit#inp_inline {
+                border: none;
+                background: transparent;
+                padding: 4px 8px;
+                font-size: 14px;
+                color: #1e293b;
+            }
+            QLineEdit#inp_inline:focus {
+                border: none;
+                background: transparent;
+            }
+            QComboBox {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 14px;
+                color: #1e293b;
                 outline: none;
             }
-            QPushButton {
-                background-color: #2563eb;
-                color: white;
+            QComboBox:focus {
+                border-color: #6366f1;
+            }
+            QComboBox::drop-down {
+                border: none;
+                padding-right: 8px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                width: 0;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 4px;
+                color: #1e293b;
+                font-size: 14px;
+                outline: none;
+                selection-background-color: #f1f5f9;
+                selection-color: #6366f1;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px 12px;
                 border-radius: 6px;
-                padding: 12px 20px;
-                font-weight: bold;
-                font-size: 15px;
+                min-height: 32px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #f8fafc;
+            }
+            QPushButton {
+                background-color: #6366f1;
+                color: white;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-weight: 600;
+                font-size: 14px;
                 border: none;
                 outline: none;
             }
             QPushButton:hover {
-                background-color: #1d4ed8;
+                background-color: #4f46e5;
             }
             QPushButton:pressed {
-                background-color: #1e40af;
+                background-color: #4338ca;
             }
             QPushButton:focus {
                 outline: none;
             }
+            QPushButton#btn_create {
+                background-color: #6366f1;
+                font-size: 14px;
+                padding: 10px 16px;
+                border-radius: 8px;
+            }
+            QPushButton#btn_create:hover {
+                background-color: #4f46e5;
+            }
+            QPushButton#btn_remove_party {
+                background-color: #ffffff;
+                color: #ef4444;
+                border: 1px solid #fca5a5;
+                font-size: 14px;
+                padding: 10px 16px;
+                border-radius: 8px;
+            }
+            QPushButton#btn_remove_party:hover {
+                background-color: #fef2f2;
+                border-color: #ef4444;
+            }
+            QPushButton#btn_remove_party:pressed {
+                background-color: #fee2e2;
+            }
             QPushButton#btn_print {
                 background-color: #059669;
+                padding: 10px 24px;
+                border-radius: 8px;
             }
             QPushButton#btn_print:hover {
                 background-color: #047857;
@@ -303,88 +400,163 @@ class LedgerApp(QMainWindow):
                 background-color: #065f46;
             }
             QPushButton#btn_date_filter {
-                background-color: #7c3aed;
+                background-color: #ffffff;
+                color: #475569;
+                border: 1px solid #cbd5e1;
+                padding: 10px 24px;
+                border-radius: 8px;
+                font-weight: 500;
             }
             QPushButton#btn_date_filter:hover {
-                background-color: #6d28d9;
+                background-color: #f8fafc;
+                border-color: #94a3b8;
             }
             QPushButton#btn_date_filter:pressed {
-                background-color: #5b21b6;
+                background-color: #f1f5f9;
+            }
+            QPushButton#btn_active_filter {
+                background-color: #eef2ff;
+                color: #6366f1;
+                border: 1px solid #a5b4fc;
+                padding: 10px 24px;
+                border-radius: 8px;
+                font-weight: 500;
+            }
+            QPushButton#btn_active_filter:hover {
+                background-color: #e0e7ff;
             }
             QPushButton#btn_remove {
-                background-color: #dc2626;
-                padding: 6px 12px;
-                font-size: 13px;
+                background-color: transparent;
+                color: #94a3b8;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 0;
+                font-size: 14px;
+                font-weight: 400;
             }
             QPushButton#btn_remove:hover {
-                background-color: #b91c1c;
+                background-color: #fef2f2;
+                border-color: #f87171;
+                color: #ef4444;
             }
             QPushButton#btn_remove:pressed {
-                background-color: #991b1b;
+                background-color: #fee2e2;
             }
-            QPushButton#btn_remove_party {
-                background-color: #dc2626;
+            QPushButton#btn_save {
+                background-color: #6366f1;
+                font-size: 15px;
+                padding: 12px 24px;
+                border-radius: 8px;
+                min-height: 20px;
             }
-            QPushButton#btn_remove_party:hover {
-                background-color: #b91c1c;
+            QPushButton#btn_save:hover {
+                background-color: #4f46e5;
             }
-            QPushButton#btn_remove_party:pressed {
-                background-color: #991b1b;
+            QPushButton#btn_dialog_add {
+                background-color: #6366f1;
+                font-size: 14px;
+                padding: 10px 24px;
+                border-radius: 8px;
             }
             QListWidget {
-                background-color: white;
+                background-color: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 8px;
-                font-size: 15px;
+                border-radius: 10px;
+                padding: 6px;
+                font-size: 14px;
                 outline: none;
             }
             QListWidget:focus {
                 outline: none;
             }
             QListWidget::item {
-                padding: 12px 16px;
-                border-radius: 6px;
+                padding: 10px 14px;
+                border-radius: 8px;
                 color: #334155;
                 font-weight: 500;
+                margin: 2px 0;
             }
             QListWidget::item:hover {
                 background-color: #f1f5f9;
                 color: #1e293b;
             }
             QListWidget::item:selected {
-                background-color: #eff6ff;
-                color: #2563eb;
-                font-weight: bold;
+                background-color: #eef2ff;
+                color: #6366f1;
+                font-weight: 600;
             }
             QTableWidget {
-                background-color: white;
+                background-color: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 8px;
+                border-radius: 10px;
                 gridline-color: #f1f5f9;
-                font-size: 15px;
-                color: #334155;
+                font-size: 14px;
+                color: #1e293b;
                 outline: none;
             }
             QTableWidget:focus {
                 outline: none;
             }
+            QTableWidget::item {
+                padding: 4px 8px;
+                border-bottom: 1px solid #f1f5f9;
+            }
+            QTableWidget::item:selected {
+                background-color: #eef2ff;
+                color: #6366f1;
+            }
             QHeaderView::section {
                 background-color: #f8fafc;
-                padding: 14px;
-                font-weight: bold;
-                font-size: 15px;
-                color: #475569;
+                padding: 12px 8px;
+                font-weight: 600;
+                font-size: 13px;
+                color: #64748b;
                 border: none;
                 border-bottom: 2px solid #e2e8f0;
+                border-right: 1px solid #f1f5f9;
+            }
+            QHeaderView::section:last {
+                border-right: none;
+            }
+            QScrollBar:vertical {
+                background: #f1f5f9;
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #cbd5e1;
+                border-radius: 4px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #94a3b8;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+            QScrollBar:horizontal {
+                background: #f1f5f9;
+                height: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal {
+                background: #cbd5e1;
+                border-radius: 4px;
+                min-width: 30px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #94a3b8;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0;
             }
             QAbstractItemView {
-                background-color: white;
+                background-color: #ffffff;
                 border: 1px solid #e2e8f0;
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 6px;
-                color: #334155;
-                font-size: 14px;
+                color: #1e293b;
+                font-size: 13px;
                 outline: none;
             }
             QAbstractItemView:focus {
@@ -392,35 +564,48 @@ class LedgerApp(QMainWindow):
             }
             QAbstractItemView::item {
                 padding: 8px 12px;
-                border-radius: 4px;
+                border-radius: 6px;
             }
             QAbstractItemView::item:hover {
                 background-color: #f1f5f9;
             }
             QAbstractItemView::item:selected {
-                background-color: #eff6ff;
-                color: #2563eb;
+                background-color: #eef2ff;
+                color: #6366f1;
             }
-        """)
+        """
+        self.setStyleSheet(STYLE)
 
         main_widget = QWidget()
         layout = QHBoxLayout(main_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         
         # Sidebar
+        sidebar = QVBoxLayout()
+        sidebar.setContentsMargins(16, 16, 12, 16)
+        sidebar.setSpacing(8)
+
+        title_label = QLabel("PARTIES")
+        title_label.setObjectName("sidebar_title")
+        sidebar.addWidget(title_label)
+
+        self.party_count_label = QLabel("")
+        self.party_count_label.setObjectName("party_count")
+        sidebar.addWidget(self.party_count_label)
+
         self.party_list = QListWidget()
         self.party_list.itemClicked.connect(self.filter_by_party)
-        btn_add_party = QPushButton("Create Party")
+
+        btn_add_party = QPushButton("  + New Party")
+        btn_add_party.setObjectName("btn_create")
         btn_add_party.clicked.connect(self.add_party)
-        btn_remove_party = QPushButton("Remove Party")
+        btn_remove_party = QPushButton("  − Remove")
         btn_remove_party.setObjectName("btn_remove_party")
         btn_remove_party.clicked.connect(self.remove_party)
-        
-        sidebar = QVBoxLayout()
-        sidebar.setContentsMargins(12, 12, 12, 12)
-        sidebar.setSpacing(10)
+
         sidebar.addWidget(btn_add_party)
         sidebar.addWidget(btn_remove_party)
-        sidebar.addWidget(QLabel("Parties:"))
         sidebar.addWidget(self.party_list)
         
         # Main Area
@@ -430,25 +615,33 @@ class LedgerApp(QMainWindow):
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(48)
-        
-        btn_print = QPushButton("Export Report")
+        self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+
+        btn_print = QPushButton("  Export Report")
         btn_print.setObjectName("btn_print")
         btn_print.clicked.connect(self.print_report)
 
-        self.btn_date_filter = QPushButton("Date Filter")
+        self.btn_date_filter = QPushButton("  Date Filter")
         self.btn_date_filter.setObjectName("btn_date_filter")
         self.btn_date_filter.clicked.connect(self._apply_date_filter)
         
         main_area = QVBoxLayout()
-        main_area.setContentsMargins(12, 12, 12, 12)
+        main_area.setContentsMargins(12, 16, 16, 16)
         main_area.setSpacing(12)
+
+        header_row = QHBoxLayout()
+        header_row.setSpacing(0)
+        self._header_title = QLabel("All Transactions")
+        self._header_title.setStyleSheet("font-size: 20px; font-weight: 700; color: #0f172a;")
+        header_row.addWidget(self._header_title)
+        header_row.addStretch()
         
         top_bar = QHBoxLayout()
-        top_bar.setSpacing(12)
+        top_bar.setSpacing(10)
         top_bar.addWidget(self.btn_date_filter)
-        top_bar.addStretch()
         top_bar.addWidget(btn_print)
-        
+
+        main_area.addLayout(header_row)
         main_area.addLayout(top_bar)
         main_area.addWidget(self.table)
         
@@ -527,25 +720,25 @@ class LedgerApp(QMainWindow):
 
         if show_input:
             self.table.setRowCount(len(clean) + 2)  # input + data + total
-            inp_style = "border: none; background: #f8fafc; padding: 2px 6px; font-size: 15px;"
+            inp_style = "border: none; background: transparent; padding: 4px 8px; font-size: 14px;"
             row_h = 48
             self.table.setRowHeight(0, row_h)
             # Row 0: inline input row
             self._inp_date = QLineEdit()
+            self._inp_date.setObjectName("inp_inline")
             self._inp_date.setText(date.today().strftime("%d-%m-%Y"))
             self._inp_date.setPlaceholderText("DD-MM-YYYY")
-            self._inp_date.setStyleSheet(inp_style)
             self._inp_date.returnPressed.connect(self._add_inline_transaction)
             self.table.setCellWidget(0, 0, self._inp_date)
 
             party_label = QLabel(self._current_party)
             party_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            party_label.setStyleSheet("font-weight: bold; color: #2563eb; border: none; background: #f8fafc;")
+            party_label.setStyleSheet("font-weight: 600; color: #6366f1; border: none; background: transparent;")
             self.table.setCellWidget(0, 1, party_label)
 
             self._inp_desc = QLineEdit()
+            self._inp_desc.setObjectName("inp_inline")
             self._inp_desc.setPlaceholderText("Description")
-            self._inp_desc.setStyleSheet(inp_style)
             self._inp_desc.returnPressed.connect(self._add_inline_transaction)
             # Description autocomplete from all existing entries
             all_data = self.load_all_data()
@@ -559,37 +752,38 @@ class LedgerApp(QMainWindow):
 
             self._inp_status = QComboBox()
             self._inp_status.addItems(["Credit", "Debit"])
-            self._inp_status.setStyleSheet("border: none; background: white; padding: 2px 6px; font-size: 15px; color: #000000;")
+            self._inp_status.setStyleSheet("border: none; background: transparent; padding: 4px 8px; font-size: 14px; color: #1e293b;")
             self.table.setCellWidget(0, 3, self._inp_status)
 
             num_validator = QRegularExpressionValidator(QRegularExpression(r'^\d*\.?\d*$'))
 
             self._inp_qty = QLineEdit()
+            self._inp_qty.setObjectName("inp_inline")
             self._inp_qty.setPlaceholderText("Qty")
-            self._inp_qty.setStyleSheet(inp_style)
             self._inp_qty.setValidator(num_validator)
             self._inp_qty.textChanged.connect(self._inline_auto_calc)
             self._inp_qty.returnPressed.connect(self._add_inline_transaction)
             self.table.setCellWidget(0, 4, self._inp_qty)
 
             self._inp_rate = QLineEdit()
+            self._inp_rate.setObjectName("inp_inline")
             self._inp_rate.setPlaceholderText("Rate")
-            self._inp_rate.setStyleSheet(inp_style)
             self._inp_rate.setValidator(num_validator)
             self._inp_rate.textChanged.connect(self._inline_auto_calc)
             self._inp_rate.returnPressed.connect(self._add_inline_transaction)
             self.table.setCellWidget(0, 5, self._inp_rate)
 
             self._inp_total = QLineEdit()
+            self._inp_total.setObjectName("inp_inline")
             self._inp_total.setPlaceholderText("Auto")
-            self._inp_total.setStyleSheet(inp_style)
             self._inp_total.setValidator(num_validator)
             self._inp_total.textChanged.connect(self._on_total_changed)
             self._inp_total.returnPressed.connect(self._add_inline_transaction)
             self.table.setCellWidget(0, 6, self._inp_total)
 
-            btn_add = QPushButton("Add")
-            btn_add.setObjectName("btn_remove")
+            btn_add = QPushButton("+ Add")
+            btn_add.setObjectName("btn_save")
+            btn_add.setStyleSheet("QPushButton { background-color: #6366f1; color: white; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 600; border: none; } QPushButton:hover { background-color: #4f46e5; }")
             btn_add.clicked.connect(self._add_inline_transaction)
             self.table.setCellWidget(0, 7, btn_add)
 
@@ -627,20 +821,23 @@ class LedgerApp(QMainWindow):
                     cb.setCurrentText(s)
                     cb.currentTextChanged.connect(lambda txt, r=table_row: self._update_status(r, txt))
                     self.table.setCellWidget(table_row, 3, cb)
-            btn = QPushButton("Remove")
+            btn = QPushButton("✕")
             btn.setObjectName("btn_remove")
+            btn.setFixedSize(28, 28)
             btn.clicked.connect(lambda checked, r=table_row: self.remove_transaction(r))
             self.table.setCellWidget(table_row, 7, btn)
         
         # Grand total row
         total_row = offset + len(clean)
-        self.table.setRowHeight(total_row, 42)
-        gt_item = QTableWidgetItem("Grand Total")
+        self.table.setRowHeight(total_row, 48)
+        gt_item = QTableWidgetItem("  Grand Total")
         gt_font = gt_item.font()
         gt_font.setBold(True)
+        gt_font.setPointSize(11)
         gt_item.setFont(gt_font)
-        gt_item.setBackground(QColor('#f1f5f9'))
-        gt_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        gt_item.setBackground(QColor('#f8fafc'))
+        gt_item.setForeground(QColor('#1e293b'))
+        gt_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.table.setItem(total_row, 0, gt_item)
         for j in range(1, 6):
             item = QTableWidgetItem("")
@@ -657,6 +854,12 @@ class LedgerApp(QMainWindow):
         xl = pd.ExcelFile(self.file_path)
         parties = [sheet for sheet in xl.sheet_names if sheet != 'Sheet1']
         self.party_list.addItems(parties)
+        # Update header title and party count
+        if self._current_party:
+            self._header_title.setText(self._current_party)
+        else:
+            self._header_title.setText("All Transactions")
+        self.party_count_label.setText(f"{len(parties)} party{'ies' if len(parties) != 1 else 'y'}")
         # Re-select current filtered party
         if self._current_party is not None:
             items = self.party_list.findItems(self._current_party, Qt.MatchFlag.MatchExactly)
@@ -773,10 +976,14 @@ class LedgerApp(QMainWindow):
     def _apply_date_filter(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Date Filter")
-        dialog.resize(380, 240)
-        layout = QFormLayout(dialog)
-        layout.setSpacing(14)
-        layout.setContentsMargins(24, 24, 24, 24)
+        dialog.resize(400, 260)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(28, 28, 28, 28)
+
+        heading = QLabel("Filter by Date Range")
+        heading.setStyleSheet("font-size: 18px; font-weight: 700; color: #0f172a;")
+        layout.addWidget(heading)
 
         from_input = QLineEdit()
         from_input.setPlaceholderText("DD-MM-YYYY")
@@ -788,13 +995,17 @@ class LedgerApp(QMainWindow):
         if self._date_to:
             to_input.setText(self._date_to)
 
-        layout.addRow("From:", from_input)
-        layout.addRow("To:", to_input)
+        form = QFormLayout()
+        form.setSpacing(12)
+        form.addRow("From:", from_input)
+        form.addRow("To:", to_input)
+        layout.addLayout(form)
 
         btn_box = QDialogButtonBox()
         btn_box.addButton(QDialogButtonBox.StandardButton.Ok)
         btn_box.addButton(QDialogButtonBox.StandardButton.Cancel)
         clear_btn = btn_box.addButton("Clear Filter", QDialogButtonBox.ButtonRole.ResetRole)
+        clear_btn.setStyleSheet("QPushButton { background-color: #ffffff; color: #ef4444; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 500; } QPushButton:hover { background-color: #fef2f2; border-color: #f87171; } QPushButton:pressed { background-color: #fee2e2; }")
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
 
@@ -811,7 +1022,10 @@ class LedgerApp(QMainWindow):
             if cleared:
                 self._date_from = None
                 self._date_to = None
-                self.btn_date_filter.setText("Date Filter")
+                self.btn_date_filter.setText("  Date Filter")
+                self.btn_date_filter.setObjectName("btn_date_filter")
+                self.btn_date_filter.style().unpolish(self.btn_date_filter)
+                self.btn_date_filter.style().polish(self.btn_date_filter)
                 self.refresh_view()
             else:
                 f = from_input.text().strip()
@@ -828,7 +1042,10 @@ class LedgerApp(QMainWindow):
                     f, t = t, f
                 self._date_from = f
                 self._date_to = t
-                self.btn_date_filter.setText(f"Date Filter ({f} - {t})")
+                self.btn_date_filter.setText(f"  Filter: {f} — {t}")
+                self.btn_date_filter.setObjectName("btn_active_filter")
+                self.btn_date_filter.style().unpolish(self.btn_date_filter)
+                self.btn_date_filter.style().polish(self.btn_date_filter)
                 self.refresh_view()
 
     def filter_by_party(self, item):
