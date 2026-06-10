@@ -649,7 +649,8 @@ class LedgerApp(QMainWindow):
         # Main Area
         self.table = QTableWidget()
         self.table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setStretchLastSection(False)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(48)
@@ -755,6 +756,15 @@ class LedgerApp(QMainWindow):
         self.table.setColumnCount(8)
         headers = cols + ['Action']
         self.table.setHorizontalHeaderLabels(headers)
+        self.table.setColumnWidth(0, 120)
+        self.table.setColumnWidth(1, 150)
+        self.table.setColumnWidth(2, 300)
+        self.table.setColumnWidth(3, 110)
+        self.table.setColumnWidth(4, 70)
+        self.table.setColumnWidth(5, 70)
+        self.table.setColumnWidth(6, 130)
+        self.table.setColumnWidth(7, 50)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
 
         show_input = self._current_party is not None
         show_party = self._current_party is None
