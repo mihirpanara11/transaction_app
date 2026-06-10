@@ -961,6 +961,17 @@ class LedgerApp(QMainWindow):
         if sheet_row >= len(df):
             return
         df.loc[sheet_row, col_name] = new_val
+        if col in (4, 5):
+            other_col = 5 if col == 4 else 4
+            other_item = self.table.item(row, other_col)
+            if other_item:
+                other_val = other_item.text().strip().replace(',', '')
+                try:
+                    other_val = float(other_val)
+                    total = new_val * other_val
+                    df.loc[sheet_row, 'Total'] = total
+                except ValueError:
+                    pass
         with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=sheet_name, index=False)
         if self._current_party:
