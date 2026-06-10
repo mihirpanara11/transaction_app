@@ -657,6 +657,7 @@ class LedgerApp(QMainWindow):
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.table.setWordWrap(True)
         self.table.cellChanged.connect(self._on_cell_changed)
+        self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
 
         btn_print = QPushButton("  Export Report")
         btn_print.setObjectName("btn_print")
@@ -874,23 +875,16 @@ class LedgerApp(QMainWindow):
                         item.setData(Qt.ItemDataRole.UserRole + 1, float(val))
                     except (ValueError, TypeError):
                         pass
+                if j == 3:
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 if j == 1 and self._current_party is not None:
                     item.setBackground(QColor('#eff6ff'))
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                elif row_bg is not None and j != 3:
+                elif row_bg is not None:
                     item.setBackground(row_bg)
-                if j != 3:
-                    self.table.setItem(table_row, j, item)
-                if j == 3:
-                    cb = QComboBox()
-                    cb.addItems(["To Receive", "To Pay"])
-                    bg_color = '#f0fdf4' if row_status == 'To Receive' else '#fef2f2' if row_status == 'To Pay' else 'white'
-                    cb.setStyleSheet(f"border: none; background: {bg_color}; padding: 2px 6px; font-size: 15px; color: #000000;")
-                    cb.setCurrentText(s)
-                    cb.currentTextChanged.connect(lambda txt, r=table_row: self._update_status(r, txt))
-                    self.table.setCellWidget(table_row, 3, cb)
+                self.table.setItem(table_row, j, item)
             btn = QPushButton("✕")
             btn.setObjectName("btn_remove")
             btn.setFixedSize(28, 28)
@@ -979,6 +973,23 @@ class LedgerApp(QMainWindow):
             self.refresh_view(all_df[all_df['Party Name'] == self._current_party])
         else:
             self.refresh_view()
+
+    def _on_cell_double_clicked(self, row, col):
+        if col != 3:
+            return
+        item = self.table.item(row, 0)
+        if not item:
+            return
+        meta = item.data(Qt.ItemDataRole.UserRole)
+        if not meta:
+            return
+        sheet_name, sheet_row = meta
+        df = pd.read_excel(self.file_path, sheet_name=sheet_name)
+        if sheet_row >= len(df):
+            return
+        old_status = str(df.loc[sheet_row, 'Status']) if 'Status' in df.columns else 'Credit'
+        new_status = 'To Pay' if old_status == 'To Receive' else 'To Receive'
+        self._update_status(row, new_status)
 
     def print_report(self):
         party_name = getattr(self, '_current_party', None)
@@ -1258,16 +1269,16 @@ class LedgerApp(QMainWindow):
             f"Change status from {old_status} to {new_status}?\n\n{context}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
-            cb = self.table.cellWidget(row, 3)
-            if cb:
-                cb.blockSignals(True)
-                cb.setCurrentText(old_status)
-                cb.blockSignals(False)
             return
 
         df.loc[sheet_row, 'Status'] = new_status
         with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=sheet_name, index=False)
+        if self._current_party:
+            all_df = self.load_all_data()
+            self.refresh_view(all_df[all_df['Party Name'] == self._current_party])
+        else:
+            self.refresh_view()
 
     def remove_transaction(self, row):
         item = self.table.item(row, 0)
