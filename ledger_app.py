@@ -627,6 +627,11 @@ class LedgerApp(QMainWindow):
         filter_layout.addWidget(self._btn_filter_pay)
         sidebar.addLayout(filter_layout)
 
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search parties...")
+        self.search_input.textChanged.connect(self.filter_party_list)
+        sidebar.addWidget(self.search_input)
+
         self.party_list = QListWidget()
         self.party_list.itemClicked.connect(self.filter_by_party)
 
@@ -1106,6 +1111,11 @@ class LedgerApp(QMainWindow):
         if self._current_party:
             df = df[df['Party Name'] == self._current_party]
         self.refresh_view(df)
+
+    def filter_party_list(self, text):
+        for i in range(self.party_list.count()):
+            item = self.party_list.item(i)
+            item.setHidden(text.lower() not in item.text().lower())
 
     def filter_by_party(self, item):
         party_name = item.text()
