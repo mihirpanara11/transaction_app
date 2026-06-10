@@ -648,12 +648,13 @@ class LedgerApp(QMainWindow):
         
         # Main Area
         self.table = QTableWidget()
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.table.cellChanged.connect(self._on_cell_changed)
 
         btn_print = QPushButton("  Export Report")
         btn_print.setObjectName("btn_print")
@@ -748,6 +749,7 @@ class LedgerApp(QMainWindow):
             clean = pd.DataFrame(columns=cols)
             meta = None
 
+        self.table.blockSignals(True)
         self.table.setRowCount(0)
         self.table.setColumnCount(0)
         self.table.setColumnCount(8)
@@ -854,8 +856,15 @@ class LedgerApp(QMainWindow):
                     except (ValueError, TypeError):
                         pass
                 item = QTableWidgetItem(s)
+                if j == 1:
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 if meta is not None:
                     item.setData(Qt.ItemDataRole.UserRole, (meta.iloc[i]['_sheet_name'], meta.iloc[i]['_sheet_row']))
+                if j in (5, 6):
+                    try:
+                        item.setData(Qt.ItemDataRole.UserRole + 1, float(val))
+                    except (ValueError, TypeError):
+                        pass
                 if j == 1 and self._current_party is not None:
                     item.setBackground(QColor('#eff6ff'))
                     font = item.font()
@@ -917,6 +926,38 @@ class LedgerApp(QMainWindow):
             items = self.party_list.findItems(self._current_party, Qt.MatchFlag.MatchExactly)
             if items:
                 self.party_list.setCurrentItem(items[0])
+        self.table.blockSignals(False)
+
+    def _on_cell_changed(self, row, col):
+        item = self.table.item(row, 0)
+        if not item:
+            return
+        meta = item.data(Qt.ItemDataRole.UserRole)
+        if not meta:
+            return
+        sheet_name, sheet_row = meta
+        col_map = {0: 'Date', 2: 'Description', 4: 'Quantity', 5: 'Rate', 6: 'Total'}
+        if col not in col_map:
+            return
+        col_name = col_map[col]
+        new_val = self.table.item(row, col).text().strip()
+        if col in (4, 5, 6):
+            new_val = new_val.replace(',', '')
+            try:
+                new_val = float(new_val)
+            except ValueError:
+                return
+        df = pd.read_excel(self.file_path, sheet_name=sheet_name)
+        if sheet_row >= len(df):
+            return
+        df.loc[sheet_row, col_name] = new_val
+        with pd.ExcelWriter(self.file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+        if self._current_party:
+            all_df = self.load_all_data()
+            self.refresh_view(all_df[all_df['Party Name'] == self._current_party])
+        else:
+            self.refresh_view()
 
     def print_report(self):
         party_name = getattr(self, '_current_party', None)
