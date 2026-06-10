@@ -655,6 +655,7 @@ class LedgerApp(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.table.setWordWrap(True)
         self.table.cellChanged.connect(self._on_cell_changed)
 
         btn_print = QPushButton("  Export Report")
@@ -847,8 +848,6 @@ class LedgerApp(QMainWindow):
             self.table.setRowCount(len(clean) + 1)  # data + total
         for i in range(len(clean)):
             table_row = i + offset
-            if show_input:
-                self.table.setRowHeight(table_row, row_h)
             row_status = str(clean.iloc[i]['Status']) if 'Status' in clean.columns else ''
             row_bg = None
             if row_status == 'To Receive':
@@ -897,6 +896,7 @@ class LedgerApp(QMainWindow):
             btn.setFixedSize(28, 28)
             btn.clicked.connect(lambda checked, r=table_row: self.remove_transaction(r))
             self.table.setCellWidget(table_row, 7, btn)
+            self.table.resizeRowToContents(table_row)
         
         # Grand total row
         total_row = offset + len(clean)
