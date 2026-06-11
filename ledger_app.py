@@ -205,6 +205,79 @@ class TransactionDialog(QDialog):
             "Total": total
         }
 
+class PartySummaryDialog(QDialog):
+    def __init__(self, file_path, parent=None):
+        super().__init__(parent)
+        self.file_path = file_path
+        self.setWindowTitle("Party Summary")
+        self.resize(550, 500)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        heading = QLabel("Party-wise Grand Total")
+        heading.setStyleSheet("font-size: 20px; font-weight: 700; color: #0f172a;")
+        layout.addWidget(heading)
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(2)
+        self.table.setHorizontalHeaderLabels(["Party Name", "Grand Total"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("""
+            QTableWidget { border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+            QHeaderView::section { background-color: #f1f5f9; padding: 10px 8px;
+                font-weight: 600; font-size: 13px; color: #475569; border: none;
+                border-bottom: 1px solid #e2e8f0; }
+        """)
+        layout.addWidget(self.table)
+
+        self.total_label = QLabel()
+        self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.total_label.setStyleSheet("font-size: 16px; font-weight: 700; color: #0f172a; padding: 8px 12px;")
+        layout.addWidget(self.total_label)
+
+        btn_close = QPushButton("Close")
+        btn_close.setStyleSheet("padding: 10px 24px; font-size: 14px; font-weight: 600;")
+        btn_close.clicked.connect(self.accept)
+        layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
+
+        self.load_data()
+
+    def load_data(self):
+        try:
+            xl = pd.ExcelFile(self.file_path)
+            parties = [s for s in xl.sheet_names if s != 'Sheet1']
+            rows = []
+            overall = 0.0
+            for party in parties:
+                df = pd.read_excel(self.file_path, sheet_name=party)
+                if df.empty:
+                    continue
+                df['Total'] = pd.to_numeric(df.get('Total', 0), errors='coerce').fillna(0)
+                credit = df[df['Status'] == 'To Receive']['Total'].sum()
+                debit = df[df['Status'] == 'To Pay']['Total'].sum()
+                gt = credit - debit
+                rows.append((party, gt))
+                overall += gt
+            self.table.setRowCount(len(rows))
+            for i, (party, gt) in enumerate(rows):
+                name_item = QTableWidgetItem(party)
+                name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                name_item.setStyleSheet("padding: 8px;")
+                self.table.setItem(i, 0, name_item)
+                total_item = QTableWidgetItem(indian_format(gt))
+                total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                total_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                total_item.setStyleSheet("padding: 8px; font-weight: 600;")
+                self.table.setItem(i, 1, total_item)
+            self.total_label.setText(f"Overall Grand Total: {indian_format(overall)}")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not load summary: {e}")
+
 class LedgerApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -442,6 +515,18 @@ class LedgerApp(QMainWindow):
             }
             QPushButton#btn_date_filter:pressed {
                 background-color: #f1f5f9;
+            }
+            QPushButton#btn_summary {
+                background-color: #4f46e5;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton#btn_summary:hover {
+                background-color: #4338ca;
             }
             QPushButton#btn_active_filter {
                 background-color: #eef2ff;
@@ -695,6 +780,10 @@ class LedgerApp(QMainWindow):
         self.btn_date_filter = QPushButton("  Date Filter")
         self.btn_date_filter.setObjectName("btn_date_filter")
         self.btn_date_filter.clicked.connect(self._apply_date_filter)
+
+        btn_summary = QPushButton("  Party Summary")
+        btn_summary.setObjectName("btn_summary")
+        btn_summary.clicked.connect(self.show_party_summary)
         
         main_area = QVBoxLayout()
         main_area.setContentsMargins(12, 16, 16, 16)
@@ -709,6 +798,7 @@ class LedgerApp(QMainWindow):
         
         top_bar = QHBoxLayout()
         top_bar.setSpacing(10)
+        top_bar.addWidget(btn_summary)
         top_bar.addWidget(self.btn_date_filter)
         top_bar.addWidget(btn_print)
 
@@ -1227,6 +1317,10 @@ class LedgerApp(QMainWindow):
         if self._current_party:
             df = df[df['Party Name'] == self._current_party]
         self.refresh_view(df)
+
+    def show_party_summary(self):
+        dialog = PartySummaryDialog(self.file_path, self)
+        dialog.exec()
 
     def filter_party_list(self, text):
         for i in range(self.party_list.count()):
