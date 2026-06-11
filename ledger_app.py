@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QTableWidgetItem, QSplitter, QDialog, 
                              QFormLayout, QLineEdit, QDateEdit, QHeaderView, QLabel, QMessageBox,
                              QFileDialog, QDialogButtonBox, QComboBox)
-from PyQt6.QtCore import Qt, QRegularExpression, QDate, QStringListModel
+from PyQt6.QtCore import Qt, QRegularExpression, QDate, QStringListModel, QEvent
 from PyQt6.QtWidgets import QCompleter, QMenu
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtGui import QTextDocument, QPageSize, QColor, QRegularExpressionValidator
@@ -214,6 +214,7 @@ class LedgerApp(QMainWindow):
         self._date_from = None
         self._date_to = None
         self._blocked_descriptions = set()
+        self._current_suggestion = None
         self.init_data_file()
         self.init_ui()
 
@@ -832,10 +833,14 @@ class LedgerApp(QMainWindow):
             desc_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
             desc_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
             self._inp_desc.setCompleter(desc_completer)
-            # Add right-click "Remove" to completer popup
+            # Track current suggestion for removal via Delete key
+            desc_completer.highlighted.connect(self._on_suggestion_highlighted)
+            self._desc_completer = desc_completer
+            self._inp_desc.installEventFilter(self)
+            # Right-click removal on popup
             popup = desc_completer.popup()
-            popup.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            popup.customContextMenuRequested.connect(lambda pos: self._show_suggestion_menu(pos, desc_completer))
+            popup.viewport().installEventFilter(self)
+            self._desc_popup_viewport = popup.viewport()
             self.table.setCellWidget(0, 2, self._inp_desc)
 
             self._inp_status = QComboBox()
@@ -1275,16 +1280,33 @@ class LedgerApp(QMainWindow):
             else:
                 QMessageBox.warning(self, "Error", "Invalid data input")
 
-    def _show_suggestion_menu(self, pos, completer):
-        popup = completer.popup()
-        index = popup.indexAt(pos)
-        if index.isValid():
-            desc = index.data()
-            menu = QMenu()
-            remove_action = menu.addAction(f"Remove \"{desc}\" from suggestions")
-            action = menu.exec(popup.viewport().mapToGlobal(pos))
-            if action == remove_action:
-                self._remove_desc_suggestion(desc)
+    def eventFilter(self, obj, event):
+        if obj is getattr(self, '_inp_desc', None) and event.type() == QEvent.Type.KeyPress:
+            if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace) and self._current_suggestion:
+                completer = getattr(self, '_desc_completer', None)
+                if completer and completer.popup().isVisible():
+                    desc = self._current_suggestion
+                    reply = QMessageBox.question(self, "Remove Suggestion",
+                        f"Remove \"{desc}\" from suggestions permanently?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self._remove_desc_suggestion(desc)
+                    return True
+        if obj is getattr(self, '_desc_popup_viewport', None) and event.type() == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.RightButton:
+                index = obj.parent().indexAt(event.pos())
+                if index.isValid():
+                    desc = index.data()
+                    menu = QMenu()
+                    remove_action = menu.addAction(f"Remove \"{desc}\" from suggestions")
+                    action = menu.exec(event.globalPosition().toPoint())
+                    if action == remove_action:
+                        self._remove_desc_suggestion(desc)
+                    return True
+        return super().eventFilter(obj, event)
+
+    def _on_suggestion_highlighted(self, text):
+        self._current_suggestion = text
 
     def _update_status(self, row, new_status):
         item = self.table.item(row, 0)
