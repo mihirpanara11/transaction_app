@@ -267,12 +267,13 @@ class PartySummaryDialog(QDialog):
             for i, (party, gt) in enumerate(rows):
                 name_item = QTableWidgetItem(party)
                 name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                name_item.setStyleSheet("padding: 8px;")
                 self.table.setItem(i, 0, name_item)
                 total_item = QTableWidgetItem(indian_format(gt))
                 total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 total_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                total_item.setStyleSheet("padding: 8px; font-weight: 600;")
+                font = total_item.font()
+                font.setWeight(600)
+                total_item.setFont(font)
                 self.table.setItem(i, 1, total_item)
             self.total_label.setText(f"Overall Grand Total: {indian_format(overall)}")
         except Exception as e:
