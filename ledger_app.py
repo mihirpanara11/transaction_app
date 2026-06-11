@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from datetime import date
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QListWidget, QPushButton, QTableWidget, 
+                             QHBoxLayout, QListWidget, QListWidgetItem, QPushButton, QTableWidget, 
                              QTableWidgetItem, QSplitter, QDialog, 
                              QFormLayout, QLineEdit, QDateEdit, QHeaderView, QLabel, QMessageBox,
                              QFileDialog, QDialogButtonBox, QComboBox)
@@ -662,6 +662,7 @@ class LedgerApp(QMainWindow):
 
         self.party_list = QListWidget()
         self.party_list.itemClicked.connect(self.filter_by_party)
+        self.party_list.itemChanged.connect(self._rename_party)
 
         btn_add_party = QPushButton("  + New Party")
         btn_add_party.setObjectName("btn_create")
@@ -951,10 +952,16 @@ class LedgerApp(QMainWindow):
         self.table.setItem(total_row, 6, total_val)
         
         # Update party list
+        self.party_list.blockSignals(True)
         self.party_list.clear()
         xl = pd.ExcelFile(self.file_path)
         parties = [sheet for sheet in xl.sheet_names if sheet != 'Sheet1']
-        self.party_list.addItems(parties)
+        for name in parties:
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            self.party_list.addItem(item)
+        self.party_list.blockSignals(False)
         # Update header title and party count
         if self._current_party:
             self._header_title.setText(self._current_party)
@@ -1366,6 +1373,33 @@ class LedgerApp(QMainWindow):
             self.refresh_view(df[df['Party Name'] == self._current_party])
         else:
             self.refresh_view()
+
+    def _rename_party(self, item):
+        old_name = item.data(Qt.ItemDataRole.UserRole)
+        new_name = item.text().strip()
+        if not new_name or old_name == new_name:
+            self.party_list.blockSignals(True)
+            item.setText(old_name)
+            self.party_list.blockSignals(False)
+            return
+        import openpyxl
+        wb = openpyxl.load_workbook(self.file_path)
+        if new_name in wb.sheetnames:
+            QMessageBox.warning(self, "Rename Party", f"Party \"{new_name}\" already exists.")
+            self.party_list.blockSignals(True)
+            item.setText(old_name)
+            self.party_list.blockSignals(False)
+            wb.close()
+            return
+        ws = wb[old_name]
+        ws.title = new_name
+        wb.save(self.file_path)
+        wb.close()
+        item.setData(Qt.ItemDataRole.UserRole, new_name)
+        if self._current_party == old_name:
+            self._current_party = new_name
+        if self._current_party:
+            self._header_title.setText(self._current_party)
 
     def remove_party(self):
         selected = self.party_list.currentItem()
