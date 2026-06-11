@@ -7,8 +7,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QTableWidgetItem, QSplitter, QDialog, 
                              QFormLayout, QLineEdit, QDateEdit, QHeaderView, QLabel, QMessageBox,
                              QFileDialog, QDialogButtonBox, QComboBox)
-from PyQt6.QtCore import Qt, QRegularExpression, QDate
-from PyQt6.QtWidgets import QCompleter
+from PyQt6.QtCore import Qt, QRegularExpression, QDate, QStringListModel
+from PyQt6.QtWidgets import QCompleter, QMenu
 from PyQt6.QtPrintSupport import QPrinter
 from PyQt6.QtGui import QTextDocument, QPageSize, QColor, QRegularExpressionValidator
 
@@ -213,6 +213,7 @@ class LedgerApp(QMainWindow):
         self._status_filter = None
         self._date_from = None
         self._date_to = None
+        self._blocked_descriptions = set()
         self.init_data_file()
         self.init_ui()
 
@@ -221,6 +222,13 @@ class LedgerApp(QMainWindow):
     def init_data_file(self):
         if not os.path.exists(self.file_path):
             pd.DataFrame(columns=self.SHEET_COLUMNS).to_excel(self.file_path, sheet_name='Sheet1', index=False)
+        blocked_path = os.path.join(os.path.dirname(os.path.abspath(self.file_path)), 'blocked_descriptions.json')
+        if os.path.exists(blocked_path):
+            import json
+            with open(blocked_path, 'r') as f:
+                self._blocked_descriptions = set(json.load(f))
+        else:
+            self._blocked_descriptions = set()
 
     def load_all_data(self):
         try:
@@ -244,6 +252,25 @@ class LedgerApp(QMainWindow):
             return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame(columns=cols)
         except Exception as e:
             return pd.DataFrame(columns=['Date', 'Party Name', 'Description', 'Status', 'Quantity', 'Rate', 'Total', '_sheet_name', '_sheet_row'])
+
+    def _save_blocked_descriptions(self):
+        import json
+        blocked_path = os.path.join(os.path.dirname(os.path.abspath(self.file_path)), 'blocked_descriptions.json')
+        with open(blocked_path, 'w') as f:
+            json.dump(list(self._blocked_descriptions), f)
+
+    def _remove_desc_suggestion(self, desc):
+        self._blocked_descriptions.add(desc)
+        self._save_blocked_descriptions()
+        # Update the completer model
+        if hasattr(self, '_desc_completer_model'):
+            all_descs = self._get_all_descriptions()
+            self._desc_completer_model.setStringList(all_descs)
+
+    def _get_all_descriptions(self):
+        all_data = self.load_all_data()
+        all_descs = sorted(set(all_data['Description'].dropna().astype(str).tolist()))
+        return [d for d in all_descs if d not in self._blocked_descriptions]
 
     def init_ui(self):
         self.setWindowTitle("Party Ledger Manager")
@@ -798,13 +825,17 @@ class LedgerApp(QMainWindow):
             self._inp_desc.setPlaceholderText("Description")
             self._inp_desc.returnPressed.connect(self._add_inline_transaction)
             # Description autocomplete from all existing entries
-            all_data = self.load_all_data()
-            all_descs = sorted(set(all_data['Description'].dropna().astype(str).tolist()))
-            desc_completer = QCompleter(all_descs)
+            all_descs = self._get_all_descriptions()
+            self._desc_completer_model = QStringListModel(all_descs)
+            desc_completer = QCompleter(self._desc_completer_model)
             desc_completer.setFilterMode(Qt.MatchFlag.MatchContains)
             desc_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
             desc_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
             self._inp_desc.setCompleter(desc_completer)
+            # Add right-click "Remove" to completer popup
+            popup = desc_completer.popup()
+            popup.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            popup.customContextMenuRequested.connect(lambda pos: self._show_suggestion_menu(pos, desc_completer))
             self.table.setCellWidget(0, 2, self._inp_desc)
 
             self._inp_status = QComboBox()
@@ -1243,6 +1274,17 @@ class LedgerApp(QMainWindow):
                 self.refresh_view()
             else:
                 QMessageBox.warning(self, "Error", "Invalid data input")
+
+    def _show_suggestion_menu(self, pos, completer):
+        popup = completer.popup()
+        index = popup.indexAt(pos)
+        if index.isValid():
+            desc = index.data()
+            menu = QMenu()
+            remove_action = menu.addAction(f"Remove \"{desc}\" from suggestions")
+            action = menu.exec(popup.viewport().mapToGlobal(pos))
+            if action == remove_action:
+                self._remove_desc_suggestion(desc)
 
     def _update_status(self, row, new_status):
         item = self.table.item(row, 0)
