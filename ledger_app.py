@@ -596,8 +596,8 @@ class LedgerApp(QMainWindow):
                 color: #1e293b;
             }
             QListWidget::item:selected {
-                background-color: #eef2ff;
-                color: #6366f1;
+                background-color: #00008B;
+                color: #ffffff;
                 font-weight: 600;
             }
             QTableWidget {
@@ -685,8 +685,8 @@ class LedgerApp(QMainWindow):
                 background-color: #f1f5f9;
             }
             QAbstractItemView::item:selected {
-                background-color: #eef2ff;
-                color: #6366f1;
+                background-color: #00008B;
+                color: #ffffff;
             }
         """
         self.setStyleSheet(STYLE)
@@ -1130,20 +1130,35 @@ class LedgerApp(QMainWindow):
         df = self.load_all_data()
         if party_name:
             df = df[df['Party Name'] == party_name]
-            title = f"Party Ledger � {party_name}"
+            title = f"Party Ledger – {party_name}"
             suggested = f"{party_name}_ledger.pdf"
         else:
-            title = "Party Ledger � All Parties"
+            title = "Party Ledger – All Parties"
             suggested = "all_parties_ledger.pdf"
 
+        total_till_now = None
         if self._date_from and self._date_to:
-            df['_pdf_date'] = pd.to_datetime(df['Date'], format='%d-%m-%Y', errors='coerce')
             from_dt = pd.to_datetime(self._date_from, format='%d-%m-%Y')
             to_dt = pd.to_datetime(self._date_to, format='%d-%m-%Y')
+            # Calculate total before filter start
+            before_df = df.copy()
+            before_df['_pdf_date'] = pd.to_datetime(before_df['Date'], format='%d-%m-%Y', errors='coerce')
+            before_df = before_df[before_df['_pdf_date'] < from_dt]
+            if not before_df.empty:
+                before_df['Total'] = pd.to_numeric(before_df.get('Total', 0), errors='coerce').fillna(0)
+                calc = pd.to_numeric(before_df['Quantity'], errors='coerce').fillna(0) * pd.to_numeric(before_df['Rate'], errors='coerce').fillna(0)
+                mask = (before_df['Total'] == 0) & (calc != 0)
+                before_df.loc[mask, 'Total'] = calc[mask]
+                credit_mask = before_df['Status'] == 'To Receive'
+                ttn = before_df.loc[credit_mask, 'Total'].sum() - before_df.loc[~credit_mask, 'Total'].sum()
+                status = 'To Receive' if ttn >= 0 else 'To Pay'
+                total_till_now = (status, abs(ttn))
+            # Now apply date filter
+            df['_pdf_date'] = pd.to_datetime(df['Date'], format='%d-%m-%Y', errors='coerce')
             df = df[(df['_pdf_date'] >= from_dt) & (df['_pdf_date'] <= to_dt)]
             df = df.drop(columns=['_pdf_date'])
 
-        if df.empty:
+        if df.empty and not total_till_now:
             QMessageBox.information(self, "Export PDF", "No transactions to export.")
             return
 
@@ -1174,6 +1189,15 @@ class LedgerApp(QMainWindow):
             headers = ['Date', 'Party', 'Description', 'Status', 'Qty', 'Rate', 'Total']
 
         rows_html = ''
+        if total_till_now:
+            status_label, ttn_amount = total_till_now
+            ttn_row = {'Date': '', 'Description': 'Total Till Now', 'Status': status_label, 'Quantity': '', 'Rate': '', 'Total': indian_format(ttn_amount)}
+            if show_party:
+                ttn_row['Party Name'] = ''
+            rows_html += '<tr style="font-weight: bold; background-color: #fef9c3;">'
+            for col in cols:
+                rows_html += f'<td>{ttn_row.get(col, "")}</td>'
+            rows_html += '</tr>'
         for _, row in df.iterrows():
             rows_html += '<tr>'
             for col in cols:
