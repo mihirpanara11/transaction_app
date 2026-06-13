@@ -1269,11 +1269,13 @@ class LedgerApp(QMainWindow):
         layout.addWidget(heading)
 
         from_input = QLineEdit()
+        from_input.setInputMask("00-00-0000;0")
         from_input.setPlaceholderText("DD-MM-YYYY")
         if self._date_from:
             from_input.setText(self._date_from)
 
         to_input = QLineEdit()
+        to_input.setInputMask("00-00-0000;0")
         to_input.setPlaceholderText("DD-MM-YYYY")
         if self._date_to:
             to_input.setText(self._date_to)
