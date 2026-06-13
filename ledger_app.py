@@ -1185,6 +1185,8 @@ class LedgerApp(QMainWindow):
             df['Status'] = 'Credit'
         credit_mask = df['Status'] == 'To Receive'
         grand_total = df.loc[credit_mask, 'Total'].sum() - df.loc[~credit_mask, 'Total'].sum()
+        if total_till_now:
+            grand_total += total_till_now[1] if total_till_now[0] == 'To Receive' else -total_till_now[1]
         show_party = party_name is None
 
         cols = ['Date', 'Description', 'Status', 'Quantity', 'Rate', 'Total']
@@ -1219,7 +1221,8 @@ class LedgerApp(QMainWindow):
             rows_html += '</tr>'
         n_cols = len(cols)
         colspan = n_cols - 1
-        rows_html += f'<tr style="font-weight: bold; background-color: #f1f5f9;"><td colspan="{colspan}" style="text-align: right; padding: 8px;">Grand Total</td><td style="padding: 8px;">{indian_format(grand_total)}</td></tr>'
+        gt_label = "Overall Grand Total" if total_till_now else "Grand Total"
+        rows_html += f'<tr style="font-weight: bold; background-color: #f1f5f9;"><td colspan="{colspan}" style="text-align: right; padding: 8px;">{gt_label}</td><td style="padding: 8px;">{indian_format(grand_total)}</td></tr>'
 
         today = date.today().strftime('%d-%m-%Y %H:%M')
         header_cells = ''.join(f'<th>{h}</th>' for h in headers)
