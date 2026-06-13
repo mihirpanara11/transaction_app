@@ -1309,7 +1309,11 @@ class LedgerApp(QMainWindow):
                 self.btn_date_filter.setObjectName("btn_date_filter")
                 self.btn_date_filter.style().unpolish(self.btn_date_filter)
                 self.btn_date_filter.style().polish(self.btn_date_filter)
-                self.refresh_view()
+                if self._current_party:
+                    all_df = self.load_all_data()
+                    self.refresh_view(all_df[all_df['Party Name'] == self._current_party])
+                else:
+                    self.refresh_view()
             else:
                 f = from_input.text().strip()
                 t = to_input.text().strip()
@@ -1329,7 +1333,11 @@ class LedgerApp(QMainWindow):
                 self.btn_date_filter.setObjectName("btn_active_filter")
                 self.btn_date_filter.style().unpolish(self.btn_date_filter)
                 self.btn_date_filter.style().polish(self.btn_date_filter)
-                self.refresh_view()
+                if self._current_party:
+                    all_df = self.load_all_data()
+                    self.refresh_view(all_df[all_df['Party Name'] == self._current_party])
+                else:
+                    self.refresh_view()
 
     def _set_status_filter(self, status):
         self._status_filter = status
