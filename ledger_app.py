@@ -77,6 +77,7 @@ class TransactionDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
 
         self.date_input = QLineEdit()
+        self.date_input.setInputMask("00-00-0000;_")
         self.date_input.setText(date.today().strftime("%d-%m-%Y"))
         self.date_input.setPlaceholderText("DD-MM-YYYY")
         self.party_input = QLineEdit()
@@ -137,6 +138,9 @@ class TransactionDialog(QDialog):
             return
         if party_str not in self.parties:
             QMessageBox.warning(self, "Validation Error", f"Party '{party_str}' does not exist. Select a valid party.")
+            return
+        if not self.date_input.hasAcceptableInput():
+            QMessageBox.warning(self, "Validation Error", "Please enter a complete date (DD-MM-YYYY).")
             return
 
         qty_valid = False
@@ -903,6 +907,7 @@ class LedgerApp(QMainWindow):
             # Row 0: inline input row
             self._inp_date = QLineEdit()
             self._inp_date.setObjectName("inp_inline")
+            self._inp_date.setInputMask("00-00-0000;_")
             self._inp_date.setText(date.today().strftime("%d-%m-%Y"))
             self._inp_date.setPlaceholderText("DD-MM-YYYY")
             self._inp_date.returnPressed.connect(self._add_inline_transaction)
@@ -1269,13 +1274,13 @@ class LedgerApp(QMainWindow):
         layout.addWidget(heading)
 
         from_input = QLineEdit()
-        from_input.setInputMask("00-00-0000;0")
+        from_input.setInputMask("00-00-0000;_")
         from_input.setPlaceholderText("DD-MM-YYYY")
         if self._date_from:
             from_input.setText(self._date_from)
 
         to_input = QLineEdit()
-        to_input.setInputMask("00-00-0000;0")
+        to_input.setInputMask("00-00-0000;_")
         to_input.setPlaceholderText("DD-MM-YYYY")
         if self._date_to:
             to_input.setText(self._date_to)
@@ -1597,6 +1602,9 @@ class LedgerApp(QMainWindow):
 
     def _add_inline_transaction(self):
         date_str = self._inp_date.text().strip()
+        if not self._inp_date.hasAcceptableInput():
+            QMessageBox.warning(self, "Validation Error", "Enter a complete date (DD-MM-YYYY).")
+            return
         desc_str = self._inp_desc.text().strip()
         qty_str = self._inp_qty.text().strip()
         rate_str = self._inp_rate.text().strip()
