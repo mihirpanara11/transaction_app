@@ -932,6 +932,7 @@ class LedgerApp(QMainWindow):
             self._inp_desc.setCompleter(desc_completer)
             # Track current suggestion for removal via Delete key
             desc_completer.highlighted.connect(self._on_suggestion_highlighted)
+            desc_completer.activated.connect(self._on_desc_selected)
             self._desc_completer = desc_completer
             self._inp_desc.installEventFilter(self)
             # Right-click removal on popup
@@ -1451,6 +1452,22 @@ class LedgerApp(QMainWindow):
 
     def _on_suggestion_highlighted(self, text):
         self._current_suggestion = text
+
+    def _on_desc_selected(self, text):
+        if not self._current_party:
+            return
+        try:
+            df = pd.read_excel(self.file_path, sheet_name=self._current_party)
+            if df.empty:
+                return
+            matches = df[df['Description'].astype(str).str.strip() == text.strip()]
+            if matches.empty:
+                return
+            last_rate = pd.to_numeric(matches['Rate'].iloc[-1], errors='coerce')
+            if pd.notna(last_rate) and last_rate > 0:
+                self._inp_rate.setText(str(last_rate))
+        except Exception:
+            pass
 
     def _update_status(self, row, new_status):
         item = self.table.item(row, 0)
