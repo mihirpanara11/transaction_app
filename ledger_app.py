@@ -887,7 +887,7 @@ class LedgerApp(QMainWindow):
         self.table.setColumnWidth(2, 300)
         self.table.setColumnWidth(3, 110)
         self.table.setColumnWidth(4, 100)
-        self.table.setColumnWidth(5, 70)
+        self.table.setColumnWidth(5, 100)
         self.table.setColumnWidth(6, 130)
         self.table.setColumnWidth(7, 50)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
